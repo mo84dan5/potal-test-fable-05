@@ -6,6 +6,7 @@ import { Vec3 } from './domain/values/Vec3';
 import { MovementService } from './domain/services/MovementService';
 import { PortalTraversalService } from './domain/services/PortalTraversalService';
 import { ApplyDashUseCase } from './application/usecases/ApplyDashUseCase';
+import { ApplyLookUseCase } from './application/usecases/ApplyLookUseCase';
 import { ApplyStickUseCase } from './application/usecases/ApplyStickUseCase';
 import { StopMovementUseCase } from './application/usecases/StopMovementUseCase';
 import { TickUseCase } from './application/usecases/TickUseCase';
@@ -34,6 +35,7 @@ const movement = new MovementService();
 const traversal = new PortalTraversalService();
 const applyStick = new ApplyStickUseCase(session);
 const applyDash = new ApplyDashUseCase(session, movement);
+const applyLook = new ApplyLookUseCase(session);
 const stopMovement = new StopMovementUseCase(session, movement);
 const tick = new TickUseCase(session, movement, traversal);
 
@@ -49,6 +51,7 @@ const renderer = new ThreeRendererAdapter(container, session);
 const stickInput = new VirtualStickInputAdapter(renderer.canvas, {
   onStickEnd: () => stopMovement.execute(),
   onDash: (dx, dy) => applyDash.execute({ dx, dy }),
+  onLook: (dx, dy) => applyLook.execute(dx, dy),
 });
 
 setTimeout(() => hintEl.classList.add('hidden'), 5000);
