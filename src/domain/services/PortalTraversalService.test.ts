@@ -62,6 +62,18 @@ describe('PortalTraversalService.traverse', () => {
     expect(player.pitch).toBeCloseTo(0.1);
   });
 
+  it('desiredVelocity(仮想パッドの目標速度)も同じ回転で写像される', () => {
+    const player = new Player(new Vec3(0, 0, -6), new Vec3(0, 0, -2), 0, 0);
+    player.desiredVelocity = new Vec3(0, 0, -6);
+    service.traverse(player, portalA, portalB);
+    // 速度と目標速度は同じ向きのまま(長さも保存)
+    expect(player.desiredVelocity!.length()).toBeCloseTo(6);
+    const v = player.velocity;
+    const d = player.desiredVelocity!;
+    expect(d.x / 3).toBeCloseTo(v.x);
+    expect(d.z / 3).toBeCloseTo(v.z);
+  });
+
   it('同一形状のポータル対なら、通過後すぐ裏返って戻ると元の位置に帰る', () => {
     const start = new Vec3(0.4, 0, -5.2);
     const there = service.mapPoint(start, portalA, portalB);

@@ -25,6 +25,9 @@ export class PortalTraversalService {
   traverse(player: Player, from: Portal, to: Portal): void {
     player.position = this.mapPoint(player.position, from, to);
     player.velocity = this.mapVector(player.velocity, from, to);
+    if (player.desiredVelocity) {
+      player.desiredVelocity = this.mapVector(player.desiredVelocity, from, to);
+    }
     player.yaw = player.yaw + (to.yaw - from.yaw + Math.PI);
   }
 

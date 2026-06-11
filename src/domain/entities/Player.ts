@@ -2,6 +2,9 @@ import { Vec3 } from '../values/Vec3';
 
 /** プレイヤー。位置は足元(y=0)、視点はヨー・ピッチで表す */
 export class Player {
+  /** 仮想パッド押下中の目標速度。null なら入力なし(慣性減衰に任せる) */
+  public desiredVelocity: Vec3 | null = null;
+
   constructor(
     public position: Vec3,
     public velocity: Vec3,

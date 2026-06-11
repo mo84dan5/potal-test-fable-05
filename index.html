@@ -78,6 +78,26 @@
       #hint.hidden {
         opacity: 0;
       }
+      .stick-base,
+      .stick-knob {
+        position: fixed;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 10;
+      }
+      .stick-base {
+        width: 140px;
+        height: 140px;
+        border: 2px solid rgba(255, 255, 255, 0.45);
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .stick-knob {
+        width: 56px;
+        height: 56px;
+        background: rgba(255, 255, 255, 0.55);
+        box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+      }
     </style>
   </head>
   <body>
@@ -86,7 +106,7 @@
       <span class="title">◆ Portal Walk</span>
       <span id="world-name">昼の世界</span>
     </div>
-    <div id="hint">フリックで移動 / ドラッグで見回す</div>
+    <div id="hint">タッチして引っぱると移動 / はじくとダッシュ</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

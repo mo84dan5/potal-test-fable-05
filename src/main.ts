@@ -5,10 +5,10 @@ import { World } from './domain/entities/World';
 import { Vec3 } from './domain/values/Vec3';
 import { MovementService } from './domain/services/MovementService';
 import { PortalTraversalService } from './domain/services/PortalTraversalService';
-import { ApplyFlickUseCase } from './application/usecases/ApplyFlickUseCase';
-import { ApplyLookUseCase } from './application/usecases/ApplyLookUseCase';
+import { ApplyDashUseCase } from './application/usecases/ApplyDashUseCase';
+import { ApplyStickUseCase } from './application/usecases/ApplyStickUseCase';
 import { TickUseCase } from './application/usecases/TickUseCase';
-import { TouchInputAdapter } from './adapters/input/TouchInputAdapter';
+import { VirtualStickInputAdapter } from './adapters/input/VirtualStickInputAdapter';
 import { ThreeRendererAdapter } from './adapters/rendering/ThreeRendererAdapter';
 
 // --- ドメインの組み立て(ワールド定義) ---
@@ -31,8 +31,8 @@ const session = new GameSession([dayWorld, nightWorld], 'day', player);
 // --- サービス・ユースケース ---
 const movement = new MovementService();
 const traversal = new PortalTraversalService();
-const applyFlick = new ApplyFlickUseCase(session, movement);
-const applyLook = new ApplyLookUseCase(session);
+const applyStick = new ApplyStickUseCase(session);
+const applyDash = new ApplyDashUseCase(session, movement);
 const tick = new TickUseCase(session, movement, traversal);
 
 // --- アダプタ(描画・入力) ---
@@ -44,9 +44,8 @@ if (!container || !worldNameEl || !hintEl) {
 }
 
 const renderer = new ThreeRendererAdapter(container, session);
-new TouchInputAdapter(renderer.canvas, {
-  onFlick: (dx, dy) => applyFlick.execute({ dx, dy }),
-  onLook: (dx, dy) => applyLook.execute(dx, dy),
+const stickInput = new VirtualStickInputAdapter(renderer.canvas, {
+  onDash: (dx, dy) => applyDash.execute({ dx, dy }),
 });
 
 setTimeout(() => hintEl.classList.add('hidden'), 5000);
@@ -57,6 +56,7 @@ function frame(now: number): void {
   const dt = Math.min((now - lastTime) / 1000, 1 / 30); // タブ復帰時の暴走防止
   lastTime = now;
 
+  applyStick.execute(stickInput.getStick(), dt);
   const result = tick.execute(dt);
   if (result.traversed) {
     worldNameEl!.textContent = session.currentWorld.name;
