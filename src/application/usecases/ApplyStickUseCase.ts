@@ -39,10 +39,14 @@ export class ApplyStickUseCase {
     const unit = direction.scale(1 / dirLen);
     player.desiredVelocity = unit.scale(Math.min(1, magnitude) * this.walkSpeed);
 
-    // 自動旋回: 進行方向の方位へヨーを指数追従させる
+    // 自動旋回: 進行方向の方位へヨーを指数追従させる。
+    // ただし目標が背後(前方〜真横の ±π/2 を超える)の場合は旋回せず、
+    // 下に引いた操作はそのまま「後進」になる
     const targetYaw = Math.atan2(-unit.x, -unit.z);
     const delta = wrapAngle(targetYaw - player.yaw);
-    player.yaw += delta * (1 - Math.exp(-this.steerRate * dt));
+    if (Math.abs(delta) <= Math.PI / 2 + 1e-9) {
+      player.yaw += delta * (1 - Math.exp(-this.steerRate * dt));
+    }
   }
 }
 

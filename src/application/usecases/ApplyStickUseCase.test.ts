@@ -71,4 +71,28 @@ describe('ApplyStickUseCase', () => {
     new ApplyStickUseCase(session, 6).execute({ x: 0, y: -1 }, 0.1);
     expect(session.player.yaw).toBeCloseTo(0.3);
   });
+
+  it('下に引くと旋回せずに後進する(見回しは発火しない)', () => {
+    const session = buildSession(0.3);
+    new ApplyStickUseCase(session, 6).execute({ x: 0, y: 1 }, 0.1);
+    // ヨーは維持され、目標速度は後方(+forwardの逆)を向く
+    expect(session.player.yaw).toBeCloseTo(0.3);
+    const d = session.player.desiredVelocity!;
+    const f = session.player.forward;
+    expect(d.x / 6).toBeCloseTo(-f.x);
+    expect(d.z / 6).toBeCloseTo(-f.z);
+  });
+
+  it('後方斜め(下右)でも旋回しない', () => {
+    const session = buildSession(0);
+    new ApplyStickUseCase(session, 6).execute({ x: 0.5, y: 0.866 }, 0.1);
+    expect(session.player.yaw).toBeCloseTo(0);
+    expect(session.player.desiredVelocity).not.toBeNull();
+  });
+
+  it('真横(右)は従来どおり旋回する(境界は旋回に含む)', () => {
+    const session = buildSession(0);
+    new ApplyStickUseCase(session, 6, 4.5).execute({ x: 1, y: 0 }, 0.1);
+    expect(session.player.yaw).toBeLessThan(0);
+  });
 });
