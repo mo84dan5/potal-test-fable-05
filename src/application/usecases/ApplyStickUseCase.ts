@@ -10,7 +10,9 @@ export interface StickInput {
 const DEAD_ZONE = 0.12;
 
 /**
- * 仮想パッドのスティック値を毎フレーム目標速度と自動旋回へ変換するユースケース。
+ * 仮想パッドのスティック値を毎フレーム目標速度へ変換するユースケース。
+ * 1本指は移動のみを担い、視点は一切変えない(上=前進、下=後進、左右=平行移動)。
+ * 視点の回転は2本指見回し(ApplyLookUseCase)に分離されている。
  * stick が null(指を離している)なら目標速度を解除する。
  */
 export class ApplyStickUseCase {
@@ -18,11 +20,9 @@ export class ApplyStickUseCase {
     private readonly session: GameSession,
     /** 最大歩行速度 [m/s](スティックを倒し切ったとき) */
     private readonly walkSpeed = 6,
-    /** 進行方向への旋回の追従の強さ [1/s] */
-    private readonly steerRate = 2.0,
   ) {}
 
-  execute(stick: StickInput | null, dt: number): void {
+  execute(stick: StickInput | null): void {
     const player = this.session.player;
     const magnitude = stick ? Math.hypot(stick.x, stick.y) : 0;
     if (!stick || magnitude < DEAD_ZONE) {
@@ -30,7 +30,7 @@ export class ApplyStickUseCase {
       return;
     }
 
-    // 上に倒す(y<0)= 前進、引っ張り量で速度が決まる
+    // 上に倒す(y<0)= 前進、右に倒す(x>0)= 右への平行移動
     const direction = player.right
       .scale(stick.x)
       .add(player.forward.scale(-stick.y));
@@ -38,19 +38,5 @@ export class ApplyStickUseCase {
     if (dirLen === 0) return;
     const unit = direction.scale(1 / dirLen);
     player.desiredVelocity = unit.scale(Math.min(1, magnitude) * this.walkSpeed);
-
-    // 自動旋回: 進行方向の方位へヨーを指数追従させる。
-    // ただし目標が背後(前方〜真横の ±π/2 を超える)の場合は旋回せず、
-    // 下に引いた操作はそのまま「後進」になる
-    const targetYaw = Math.atan2(-unit.x, -unit.z);
-    const delta = wrapAngle(targetYaw - player.yaw);
-    if (Math.abs(delta) <= Math.PI / 2 + 1e-9) {
-      player.yaw += delta * (1 - Math.exp(-this.steerRate * dt));
-    }
   }
-}
-
-/** 角度差を [-π, π] に正規化する */
-function wrapAngle(a: number): number {
-  return Math.atan2(Math.sin(a), Math.cos(a));
 }

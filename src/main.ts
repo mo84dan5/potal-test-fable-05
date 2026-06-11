@@ -62,7 +62,7 @@ function frame(now: number): void {
   const dt = Math.min((now - lastTime) / 1000, 1 / 30); // タブ復帰時の暴走防止
   lastTime = now;
 
-  applyStick.execute(stickInput.getStick(), dt);
+  applyStick.execute(stickInput.getStick());
   const result = tick.execute(dt);
   if (result.traversed) {
     worldNameEl!.textContent = session.currentWorld.name;
