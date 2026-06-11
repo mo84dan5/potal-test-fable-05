@@ -51,4 +51,24 @@ describe('TickUseCase', () => {
     expect(result.traversed).toBe(false);
     expect(session.currentWorldId).toBe('day');
   });
+
+  it('コライダーのあるオブジェクトはすり抜けられない(押し出し+壁ずり)', () => {
+    const player = new Player(new Vec3(0, 0, 0), new Vec3(0, 0, -6), 0, 0);
+    const rock = { position: new Vec3(0, 0, -2), radius: 0.5 };
+    const a = new World(
+      'day', '昼',
+      new Portal(new Vec3(0, 0, -6), 0, 1.4, 3, 'night'),
+      [], [rock],
+    );
+    const b = new World('night', '夜', new Portal(new Vec3(0, 0, -6), 0, 1.4, 3, 'day'));
+    const session = new GameSession([a, b], 'day', player);
+
+    const result = buildTick(session).execute(0.3); // 衝突なしなら z=-1.8(石の内側)まで進む
+
+    expect(result.traversed).toBe(false);
+    // 石の表面(z = -2 + 0.85)で止まる
+    expect(player.position.z).toBeCloseTo(-1.15);
+    // 石へ向かう速度成分は打ち消されている
+    expect(player.velocity.z).toBeCloseTo(0);
+  });
 });

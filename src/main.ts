@@ -7,6 +7,7 @@ import { Vec3 } from './domain/values/Vec3';
 import { InteractionService } from './domain/services/InteractionService';
 import { MovementService } from './domain/services/MovementService';
 import { PortalTraversalService } from './domain/services/PortalTraversalService';
+import { Collider } from './domain/values/Collider';
 import {
   BUBBLE_RANGE,
   DAY_OBJECTS,
@@ -14,6 +15,7 @@ import {
   NIGHT_OBJECTS,
   PORTAL_BUBBLE,
   PORTAL_BUBBLE_ANCHOR_Y,
+  PORTAL_PILLAR_RADIUS,
   WorldObjectSpec,
 } from './config/worldContent';
 import { ApplyDashUseCase } from './application/usecases/ApplyDashUseCase';
@@ -51,17 +53,35 @@ const portalInteractable = (worldId: string): Interactable =>
     [],
   );
 
+// 衝突体: オブジェクト + ポータル枠の左右柱(面は通過可能なまま)
+const toColliders = (specs: WorldObjectSpec[]): Collider[] =>
+  specs.map((s) => ({ position: new Vec3(s.x, 0, s.z), radius: s.collisionRadius }));
+
+const portalPillarColliders = (portal: Portal): Collider[] => {
+  const t = portal.tangent;
+  const offset = portal.halfWidth + 0.11; // 柱の中心(枠太さ0.22の半分だけ外側)
+  return [
+    { position: portal.position.add(t.scale(offset)), radius: PORTAL_PILLAR_RADIUS },
+    { position: portal.position.add(t.scale(-offset)), radius: PORTAL_PILLAR_RADIUS },
+  ];
+};
+
+const dayPortal = new Portal(new Vec3(0, 0, -6), 0, PORTAL_HALF_WIDTH, PORTAL_HEIGHT, 'night');
+const nightPortal = new Portal(new Vec3(0, 0, -6), 0, PORTAL_HALF_WIDTH, PORTAL_HEIGHT, 'day');
+
 const dayWorld = new World(
   'day',
   '昼の世界',
-  new Portal(new Vec3(0, 0, -6), 0, PORTAL_HALF_WIDTH, PORTAL_HEIGHT, 'night'),
+  dayPortal,
   [...toInteractables(DAY_OBJECTS, 'day'), portalInteractable('day')],
+  [...toColliders(DAY_OBJECTS), ...portalPillarColliders(dayPortal)],
 );
 const nightWorld = new World(
   'night',
   '夜の世界',
-  new Portal(new Vec3(0, 0, -6), 0, PORTAL_HALF_WIDTH, PORTAL_HEIGHT, 'day'),
+  nightPortal,
   [...toInteractables(NIGHT_OBJECTS, 'night'), portalInteractable('night')],
+  [...toColliders(NIGHT_OBJECTS), ...portalPillarColliders(nightPortal)],
 );
 const player = new Player(new Vec3(0, 0, 4), Vec3.ZERO, 0, 0);
 const session = new GameSession([dayWorld, nightWorld], 'day', player);
