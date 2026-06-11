@@ -19,7 +19,7 @@ export class ApplyStickUseCase {
     /** 最大歩行速度 [m/s](スティックを倒し切ったとき) */
     private readonly walkSpeed = 6,
     /** 進行方向への旋回の追従の強さ [1/s] */
-    private readonly steerRate = 4.5,
+    private readonly steerRate = 2.0,
   ) {}
 
   execute(stick: StickInput | null, dt: number): void {

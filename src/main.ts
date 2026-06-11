@@ -7,6 +7,7 @@ import { MovementService } from './domain/services/MovementService';
 import { PortalTraversalService } from './domain/services/PortalTraversalService';
 import { ApplyDashUseCase } from './application/usecases/ApplyDashUseCase';
 import { ApplyStickUseCase } from './application/usecases/ApplyStickUseCase';
+import { StopMovementUseCase } from './application/usecases/StopMovementUseCase';
 import { TickUseCase } from './application/usecases/TickUseCase';
 import { VirtualStickInputAdapter } from './adapters/input/VirtualStickInputAdapter';
 import { ThreeRendererAdapter } from './adapters/rendering/ThreeRendererAdapter';
@@ -33,6 +34,7 @@ const movement = new MovementService();
 const traversal = new PortalTraversalService();
 const applyStick = new ApplyStickUseCase(session);
 const applyDash = new ApplyDashUseCase(session, movement);
+const stopMovement = new StopMovementUseCase(session, movement);
 const tick = new TickUseCase(session, movement, traversal);
 
 // --- アダプタ(描画・入力) ---
@@ -45,6 +47,7 @@ if (!container || !worldNameEl || !hintEl) {
 
 const renderer = new ThreeRendererAdapter(container, session);
 const stickInput = new VirtualStickInputAdapter(renderer.canvas, {
+  onStickEnd: () => stopMovement.execute(),
   onDash: (dx, dy) => applyDash.execute({ dx, dy }),
 });
 

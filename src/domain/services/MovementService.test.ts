@@ -60,6 +60,16 @@ describe('MovementService', () => {
     expect(player.velocity.x).toBeCloseTo(2 * Math.exp(-0.5));
   });
 
+  it('halt は速度と目標速度を即座に破棄する', () => {
+    const service = new MovementService();
+    const player = newPlayer();
+    player.velocity = new Vec3(3, 0, -2);
+    player.desiredVelocity = new Vec3(0, 0, -6);
+    service.halt(player);
+    expect(player.velocity.length()).toBe(0);
+    expect(player.desiredVelocity).toBeNull();
+  });
+
   it('高さは常に y=0 に保たれる', () => {
     const service = new MovementService();
     const player = newPlayer();

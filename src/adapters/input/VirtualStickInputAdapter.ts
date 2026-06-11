@@ -6,6 +6,8 @@ export interface StickState {
 }
 
 export interface VirtualStickCallbacks {
+  /** 指を離した瞬間(はじき判定より先に呼ばれる) */
+  onStickEnd(): void;
   /** はじいて離した瞬間(ダッシュ)。dx/dy はスワイプ全体の移動量 [px] */
   onDash(dx: number, dy: number): void;
 }
@@ -88,6 +90,9 @@ export class VirtualStickInputAdapter {
   private readonly onUp = (e: PointerEvent): void => {
     if (e.pointerId !== this.pointerId) return;
 
+    // 停止 → ダッシュの順で通知し、はじいた場合はダッシュの勢いだけが残る
+    this.callbacks.onStickEnd();
+
     const elapsed = e.timeStamp - this.startTime;
     const dx = e.clientX - this.originX;
     const dy = e.clientY - this.originY;
@@ -98,7 +103,9 @@ export class VirtualStickInputAdapter {
   };
 
   private readonly onCancel = (e: PointerEvent): void => {
-    if (e.pointerId === this.pointerId) this.release();
+    if (e.pointerId !== this.pointerId) return;
+    this.callbacks.onStickEnd();
+    this.release();
   };
 
   private release(): void {

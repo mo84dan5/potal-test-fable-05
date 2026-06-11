@@ -33,6 +33,12 @@ export class MovementService {
       vLen > this.config.maxSpeed ? v.scale(this.config.maxSpeed / vLen) : v;
   }
 
+  /** 即時停止: 速度と目標速度を破棄する(仮想パッド解放時) */
+  halt(player: Player): void {
+    player.velocity = Vec3.ZERO;
+    player.desiredVelocity = null;
+  }
+
   /** 1フレーム分の積分: 位置更新・速度制御(追従 or 減衰)・範囲クランプ */
   tick(player: Player, dt: number): void {
     if (dt <= 0) return;
