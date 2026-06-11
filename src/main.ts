@@ -10,12 +10,13 @@ import { PortalTraversalService } from './domain/services/PortalTraversalService
 import { Collider } from './domain/values/Collider';
 import {
   BUBBLE_RANGE,
-  DAY_OBJECTS,
   INTERACT_RANGE,
-  NIGHT_OBJECTS,
-  PORTAL_BUBBLE,
   PORTAL_BUBBLE_ANCHOR_Y,
+  PORTAL_HALF_WIDTH,
+  PORTAL_HEIGHT,
   PORTAL_PILLAR_RADIUS,
+  WORLD_DEFS,
+  WorldDef,
   WorldObjectSpec,
 } from './config/worldContent';
 import { ApplyDashUseCase } from './application/usecases/ApplyDashUseCase';
@@ -28,9 +29,9 @@ import { TickUseCase } from './application/usecases/TickUseCase';
 import { VirtualStickInputAdapter } from './adapters/input/VirtualStickInputAdapter';
 import { ThreeRendererAdapter } from './adapters/rendering/ThreeRendererAdapter';
 
-// --- ドメインの組み立て(ワールド定義) ---
-const PORTAL_HALF_WIDTH = 1.4;
-const PORTAL_HEIGHT = 3;
+// --- ドメインの組み立て(WORLD_DEFS からの汎用構築) ---
+const worldName = (worldId: string): string =>
+  WORLD_DEFS.find((d) => d.id === worldId)?.name ?? worldId;
 
 const toInteractables = (specs: WorldObjectSpec[], worldId: string): Interactable[] =>
   specs.map(
@@ -44,12 +45,12 @@ const toInteractables = (specs: WorldObjectSpec[], worldId: string): Interactabl
       ),
   );
 
-const portalInteractable = (worldId: string): Interactable =>
+const portalInteractable = (portal: Portal): Interactable =>
   new Interactable(
-    `${worldId}-portal`,
+    `interact-${portal.id}`,
     'ポータル',
-    new Vec3(0, PORTAL_BUBBLE_ANCHOR_Y, -6),
-    PORTAL_BUBBLE,
+    portal.position.withY(PORTAL_BUBBLE_ANCHOR_Y),
+    `ポータルだ。「${worldName(portal.targetWorldId)}」へつながっている`,
     [],
   );
 
@@ -66,25 +67,30 @@ const portalPillarColliders = (portal: Portal): Collider[] => {
   ];
 };
 
-const dayPortal = new Portal(new Vec3(0, 0, -6), 0, PORTAL_HALF_WIDTH, PORTAL_HEIGHT, 'night');
-const nightPortal = new Portal(new Vec3(0, 0, -6), 0, PORTAL_HALF_WIDTH, PORTAL_HEIGHT, 'day');
+const buildWorld = (def: WorldDef): World => {
+  const portals = def.portals.map(
+    (p) =>
+      new Portal(
+        p.id,
+        new Vec3(p.x, 0, p.z),
+        p.yaw,
+        PORTAL_HALF_WIDTH,
+        PORTAL_HEIGHT,
+        p.targetWorldId,
+        p.targetPortalId,
+      ),
+  );
+  return new World(
+    def.id,
+    def.name,
+    portals,
+    [...toInteractables(def.objects, def.id), ...portals.map(portalInteractable)],
+    [...toColliders(def.objects), ...portals.flatMap(portalPillarColliders)],
+  );
+};
 
-const dayWorld = new World(
-  'day',
-  '昼の世界',
-  dayPortal,
-  [...toInteractables(DAY_OBJECTS, 'day'), portalInteractable('day')],
-  [...toColliders(DAY_OBJECTS), ...portalPillarColliders(dayPortal)],
-);
-const nightWorld = new World(
-  'night',
-  '夜の世界',
-  nightPortal,
-  [...toInteractables(NIGHT_OBJECTS, 'night'), portalInteractable('night')],
-  [...toColliders(NIGHT_OBJECTS), ...portalPillarColliders(nightPortal)],
-);
 const player = new Player(new Vec3(0, 0, 4), Vec3.ZERO, 0, 0);
-const session = new GameSession([dayWorld, nightWorld], 'day', player);
+const session = new GameSession(WORLD_DEFS.map(buildWorld), 'day', player);
 
 // --- サービス・ユースケース ---
 const movement = new MovementService();

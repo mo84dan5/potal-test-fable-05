@@ -3,9 +3,13 @@ import { Vec3 } from '../values/Vec3';
 /**
  * ポータル。ワールド内に立つ垂直な長方形の面。
  * yaw=0 のとき面は XY 平面に平行で、法線は +Z を向く。
+ * ポータルは id で識別され、接続先ワールドの特定ポータル(targetPortalId)と対をなす。
+ * 1つのワールドに複数のポータルを置ける。
  */
 export class Portal {
   constructor(
+    /** このポータルの識別子(全ワールドで一意) */
+    public readonly id: string,
     /** ポータル面の中心の足元座標(y=0) */
     public readonly position: Vec3,
     /** 面の向き(Y軸まわりの回転、ラジアン) */
@@ -14,6 +18,8 @@ export class Portal {
     public readonly height: number,
     /** 接続先ワールドのID */
     public readonly targetWorldId: string,
+    /** 接続先ワールド内の対になるポータルのID */
+    public readonly targetPortalId: string,
   ) {}
 
   /** 面の法線(水平) */

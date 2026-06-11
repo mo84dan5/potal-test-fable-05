@@ -24,6 +24,10 @@ export class GameSession {
     return this.getWorld(this.currentWorldId);
   }
 
+  get allWorlds(): World[] {
+    return [...this.worlds.values()];
+  }
+
   getWorld(id: string): World {
     const world = this.worlds.get(id);
     if (!world) throw new Error(`unknown world: ${id}`);

@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { GameSession } from '../../domain/entities/GameSession';
 import { Player } from '../../domain/entities/Player';
 import { Portal } from '../../domain/entities/Portal';
+import { World } from '../../domain/entities/World';
 import { Vec3 } from '../../domain/values/Vec3';
-import { DAY_OBJECTS, NIGHT_OBJECTS } from '../../config/worldContent';
+import { WORLD_DEFS, WorldObjectSpec } from '../../config/worldContent';
 
 export interface ScreenPoint {
   x: number;
@@ -14,7 +15,10 @@ export interface ScreenPoint {
 
 interface WorldView {
   scene: THREE.Scene;
-  portalSurface: THREE.Mesh;
+  /** ポータルID → 「向こう側」を映す面メッシュ */
+  portalSurfaces: Map<string, THREE.Mesh>;
+  /** ポータルID → 面マテリアル(テクスチャは毎フレーム割当) */
+  portalMaterials: Map<string, THREE.ShaderMaterial>;
 }
 
 const PORTAL_VERTEX_SHADER = /* glsl */ `
@@ -39,8 +43,8 @@ export class ThreeRendererAdapter {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly camera: THREE.PerspectiveCamera;
   private readonly virtualCamera: THREE.PerspectiveCamera;
-  private readonly renderTarget: THREE.WebGLRenderTarget;
-  private readonly portalMaterial: THREE.ShaderMaterial;
+  /** 現在ワールドのポータルに毎フレーム割り当てるレンダーターゲットのプール */
+  private readonly renderTargetPool: THREE.WebGLRenderTarget[] = [];
   private readonly views = new Map<string, WorldView>();
 
   constructor(
@@ -62,18 +66,16 @@ export class ThreeRendererAdapter {
     this.virtualCamera = this.camera.clone();
 
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
-    this.renderTarget = new THREE.WebGLRenderTarget(size.x, size.y);
-    this.portalMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        portalTexture: { value: this.renderTarget.texture },
-        resolution: { value: size.clone() },
-      },
-      vertexShader: PORTAL_VERTEX_SHADER,
-      fragmentShader: PORTAL_FRAGMENT_SHADER,
-    });
+    const maxPortals = Math.max(
+      ...this.session.allWorlds.map((w) => w.portals.length),
+    );
+    for (let i = 0; i < maxPortals; i++) {
+      this.renderTargetPool.push(new THREE.WebGLRenderTarget(size.x, size.y));
+    }
 
-    this.views.set('day', this.buildDayWorld(session.getWorld('day').portal));
-    this.views.set('night', this.buildNightWorld(session.getWorld('night').portal));
+    for (const world of this.session.allWorlds) {
+      this.views.set(world.id, this.buildWorld(world, size));
+    }
 
     window.addEventListener('resize', this.onResize);
   }
@@ -93,38 +95,50 @@ export class ThreeRendererAdapter {
   }
 
   render(): void {
-    const current = this.viewOf(this.session.currentWorldId);
-    const otherWorldId = this.session.currentWorld.portal.targetWorldId;
-    const other = this.viewOf(otherWorldId);
-
+    const world = this.session.currentWorld;
+    const view = this.viewOf(world.id);
     this.syncCamera(this.session.player);
 
-    // 1. 仮想カメラ姿勢 = M(出口) × FlipY180 × M(入口)⁻¹ × メインカメラ姿勢
-    const fromPortal = this.session.currentWorld.portal;
-    const toPortal = this.session.getWorld(otherWorldId).portal;
-    const m = this.portalMatrix(toPortal)
-      .multiply(new THREE.Matrix4().makeRotationY(Math.PI))
-      .multiply(this.portalMatrix(fromPortal).invert())
-      .multiply(this.camera.matrixWorld);
-    m.decompose(
-      this.virtualCamera.position,
-      this.virtualCamera.quaternion,
-      this.virtualCamera.scale,
-    );
-    this.virtualCamera.projectionMatrix.copy(this.camera.projectionMatrix);
-    this.virtualCamera.projectionMatrixInverse.copy(
-      this.camera.projectionMatrixInverse,
-    );
+    // 現在ワールドの各ポータルについて、接続先ワールドをレンダーターゲットへ描画する
+    world.portals.forEach((portal, index) => {
+      const rt = this.renderTargetPool[index];
+      const targetWorld = this.session.getWorld(portal.targetWorldId);
+      const targetPortal = targetWorld.getPortal(portal.targetPortalId);
+      const targetView = this.viewOf(targetWorld.id);
 
-    // 2. 接続先ワールドをレンダーターゲットへ描画(出口ポータル面は隠して再帰を防ぐ)
-    other.portalSurface.visible = false;
-    this.renderer.setRenderTarget(this.renderTarget);
-    this.renderer.render(other.scene, this.virtualCamera);
+      // 仮想カメラ姿勢 = M(出口) × FlipY180 × M(入口)⁻¹ × メインカメラ姿勢
+      const m = this.portalMatrix(targetPortal)
+        .multiply(new THREE.Matrix4().makeRotationY(Math.PI))
+        .multiply(this.portalMatrix(portal).invert())
+        .multiply(this.camera.matrixWorld);
+      m.decompose(
+        this.virtualCamera.position,
+        this.virtualCamera.quaternion,
+        this.virtualCamera.scale,
+      );
+      this.virtualCamera.projectionMatrix.copy(this.camera.projectionMatrix);
+      this.virtualCamera.projectionMatrixInverse.copy(
+        this.camera.projectionMatrixInverse,
+      );
+
+      // 接続先シーンの全ポータル面を隠して再帰描画・フィードバックを防ぐ
+      this.setPortalSurfacesVisible(targetView, false);
+      this.renderer.setRenderTarget(rt);
+      this.renderer.render(targetView.scene, this.virtualCamera);
+      this.setPortalSurfacesVisible(targetView, true);
+
+      const material = view.portalMaterials.get(portal.id);
+      if (material) material.uniforms.portalTexture.value = rt.texture;
+    });
+
     this.renderer.setRenderTarget(null);
-    other.portalSurface.visible = true;
+    this.renderer.render(view.scene, this.camera);
+  }
 
-    // 3. 現在ワールドを描画(ポータル面はスクリーン空間UVでRTを表示)
-    this.renderer.render(current.scene, this.camera);
+  private setPortalSurfacesVisible(view: WorldView, visible: boolean): void {
+    for (const surface of view.portalSurfaces.values()) {
+      surface.visible = visible;
+    }
   }
 
   private viewOf(worldId: string): WorldView {
@@ -154,78 +168,113 @@ export class ThreeRendererAdapter {
     this.renderer.setSize(w, h);
 
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
-    this.renderTarget.setSize(size.x, size.y);
-    (this.portalMaterial.uniforms.resolution.value as THREE.Vector2).copy(size);
+    for (const rt of this.renderTargetPool) rt.setSize(size.x, size.y);
+    for (const view of this.views.values()) {
+      for (const material of view.portalMaterials.values()) {
+        (material.uniforms.resolution.value as THREE.Vector2).copy(size);
+      }
+    }
   };
 
   // --- 以下、ワールドのシーン構築(プレゼンテーション都合の見た目定義) ---
 
-  private buildDayWorld(portal: Portal): WorldView {
+  private buildWorld(world: World, size: THREE.Vector2): WorldView {
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb);
-    scene.fog = new THREE.Fog(0x87ceeb, 30, 90);
+    const def = WORLD_DEFS.find((d) => d.id === world.id);
+    this.buildEnvironment(scene, world.id);
+    if (def) this.buildObjects(scene, def.objects);
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x88aa66, 1.1));
-    const sun = new THREE.DirectionalLight(0xfff4d6, 1.4);
-    sun.position.set(10, 20, 8);
-    scene.add(sun);
-
-    const ground = new THREE.Mesh(
-      new THREE.CircleGeometry(40, 48),
-      new THREE.MeshLambertMaterial({ color: 0x5cab5c }),
-    );
-    ground.rotation.x = -Math.PI / 2;
-    scene.add(ground);
-
-    const trunkMat = new THREE.MeshLambertMaterial({ color: 0x7a5230 });
-    const leafMat = new THREE.MeshLambertMaterial({ color: 0x2e8b57 });
-    const rockMat = new THREE.MeshLambertMaterial({ color: 0x9b9b8f });
-    for (const spec of DAY_OBJECTS) {
-      if (spec.kind === 'tree') {
-        const tree = new THREE.Group();
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 2.2, 8), trunkMat);
-        trunk.position.y = 1.1;
-        const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3.2, 10), leafMat);
-        leaves.position.y = 3.6;
-        tree.add(trunk, leaves);
-        tree.position.set(spec.x, 0, spec.z);
-        scene.add(tree);
-      } else if (spec.kind === 'rock') {
-        const s = spec.size ?? 0.6;
-        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s), rockMat);
-        rock.position.set(spec.x, s * 0.6, spec.z);
-        scene.add(rock);
-      }
+    const portalSurfaces = new Map<string, THREE.Mesh>();
+    const portalMaterials = new Map<string, THREE.ShaderMaterial>();
+    for (const portal of world.portals) {
+      const frameColor =
+        def?.portals.find((p) => p.id === portal.id)?.frameColor ?? 0xffffff;
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          portalTexture: { value: null },
+          resolution: { value: size.clone() },
+        },
+        vertexShader: PORTAL_VERTEX_SHADER,
+        fragmentShader: PORTAL_FRAGMENT_SHADER,
+        side: THREE.DoubleSide,
+      });
+      const surface = this.buildPortalMeshes(scene, portal, frameColor, material);
+      portalSurfaces.set(portal.id, surface);
+      portalMaterials.set(portal.id, material);
     }
-
-    const portalSurface = this.buildPortalMeshes(scene, portal, 0xffc04d);
-    return { scene, portalSurface };
+    return { scene, portalSurfaces, portalMaterials };
   }
 
-  private buildNightWorld(portal: Portal): WorldView {
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b1026);
-    scene.fog = new THREE.Fog(0x0b1026, 30, 90);
+  private buildEnvironment(scene: THREE.Scene, worldId: string): void {
+    switch (worldId) {
+      case 'day': {
+        scene.background = new THREE.Color(0x87ceeb);
+        scene.fog = new THREE.Fog(0x87ceeb, 30, 90);
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x88aa66, 1.1));
+        const sun = new THREE.DirectionalLight(0xfff4d6, 1.4);
+        sun.position.set(10, 20, 8);
+        scene.add(sun);
+        this.addGround(scene, 0x5cab5c);
+        break;
+      }
+      case 'night': {
+        scene.background = new THREE.Color(0x0b1026);
+        scene.fog = new THREE.Fog(0x0b1026, 30, 90);
+        scene.add(new THREE.HemisphereLight(0x8899ff, 0x221144, 0.5));
+        const moonLight = new THREE.DirectionalLight(0xaabbff, 0.7);
+        moonLight.position.set(-8, 18, -6);
+        scene.add(moonLight);
+        this.addGround(scene, 0x3c2f5c);
 
-    scene.add(new THREE.HemisphereLight(0x8899ff, 0x221144, 0.5));
-    const moonLight = new THREE.DirectionalLight(0xaabbff, 0.7);
-    moonLight.position.set(-8, 18, -6);
-    scene.add(moonLight);
+        const moon = new THREE.Mesh(
+          new THREE.SphereGeometry(2.4, 24, 24),
+          new THREE.MeshBasicMaterial({ color: 0xf3f1d8 }),
+        );
+        moon.position.set(-20, 26, -34);
+        scene.add(moon);
+        scene.add(this.buildStars());
+        break;
+      }
+      case 'snow': {
+        scene.background = new THREE.Color(0xdce9f5);
+        scene.fog = new THREE.Fog(0xdce9f5, 25, 80);
+        scene.add(new THREE.HemisphereLight(0xffffff, 0xcfe0ee, 1.0));
+        const winterSun = new THREE.DirectionalLight(0xeef6ff, 0.9);
+        winterSun.position.set(6, 16, 10);
+        scene.add(winterSun);
+        this.addGround(scene, 0xf4f8fc);
+        break;
+      }
+      case 'ruins': {
+        scene.background = new THREE.Color(0xffb37a);
+        scene.fog = new THREE.Fog(0xffb37a, 28, 85);
+        scene.add(new THREE.HemisphereLight(0xffd9b0, 0x6b4a33, 0.9));
+        const dusk = new THREE.DirectionalLight(0xffa45e, 1.1);
+        dusk.position.set(-12, 8, -10);
+        scene.add(dusk);
+        this.addGround(scene, 0xc9a36a);
 
+        const sun = new THREE.Mesh(
+          new THREE.SphereGeometry(3, 24, 24),
+          new THREE.MeshBasicMaterial({ color: 0xffe2b0 }),
+        );
+        sun.position.set(-30, 8, -38);
+        scene.add(sun);
+        break;
+      }
+    }
+  }
+
+  private addGround(scene: THREE.Scene, color: number): void {
     const ground = new THREE.Mesh(
       new THREE.CircleGeometry(40, 48),
-      new THREE.MeshLambertMaterial({ color: 0x3c2f5c }),
+      new THREE.MeshLambertMaterial({ color }),
     );
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
+  }
 
-    const moon = new THREE.Mesh(
-      new THREE.SphereGeometry(2.4, 24, 24),
-      new THREE.MeshBasicMaterial({ color: 0xf3f1d8 }),
-    );
-    moon.position.set(-20, 26, -34);
-    scene.add(moon);
-
+  private buildStars(): THREE.Points {
     // 星空(座標は決め打ちの擬似乱数で生成)
     const starPositions: number[] = [];
     for (let i = 0; i < 400; i++) {
@@ -236,29 +285,82 @@ export class ThreeRendererAdapter {
     }
     const starGeo = new THREE.BufferGeometry();
     starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
-    scene.add(
-      new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.4 })),
+    return new THREE.Points(
+      starGeo,
+      new THREE.PointsMaterial({ color: 0xffffff, size: 0.4 }),
     );
+  }
 
-    for (const spec of NIGHT_OBJECTS) {
-      if (spec.kind !== 'crystal') continue;
-      const h = spec.size ?? 1.6;
-      const color = spec.color ?? 0x66ffee;
-      const crystal = new THREE.Mesh(
-        new THREE.ConeGeometry(0.5, h, 6),
-        new THREE.MeshStandardMaterial({
-          color,
-          emissive: color,
-          emissiveIntensity: 0.8,
-          roughness: 0.3,
-        }),
-      );
-      crystal.position.set(spec.x, h / 2, spec.z);
-      scene.add(crystal);
+  private buildObjects(scene: THREE.Scene, specs: WorldObjectSpec[]): void {
+    const trunkMat = new THREE.MeshLambertMaterial({ color: 0x7a5230 });
+    const leafMat = new THREE.MeshLambertMaterial({ color: 0x2e8b57 });
+    const rockMat = new THREE.MeshLambertMaterial({ color: 0x9b9b8f });
+    const iceMat = new THREE.MeshStandardMaterial({
+      color: 0xbfe3ff,
+      emissive: 0x88c9ff,
+      emissiveIntensity: 0.25,
+      roughness: 0.2,
+    });
+    const pillarMat = new THREE.MeshLambertMaterial({ color: 0xd8c49a });
+
+    for (const spec of specs) {
+      switch (spec.kind) {
+        case 'tree': {
+          const tree = new THREE.Group();
+          const trunk = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.25, 0.35, 2.2, 8),
+            trunkMat,
+          );
+          trunk.position.y = 1.1;
+          const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3.2, 10), leafMat);
+          leaves.position.y = 3.6;
+          tree.add(trunk, leaves);
+          tree.position.set(spec.x, 0, spec.z);
+          scene.add(tree);
+          break;
+        }
+        case 'rock': {
+          const s = spec.size ?? 0.6;
+          const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s), rockMat);
+          rock.position.set(spec.x, s * 0.6, spec.z);
+          scene.add(rock);
+          break;
+        }
+        case 'crystal': {
+          const h = spec.size ?? 1.6;
+          const color = spec.color ?? 0x66ffee;
+          const crystal = new THREE.Mesh(
+            new THREE.ConeGeometry(0.5, h, 6),
+            new THREE.MeshStandardMaterial({
+              color,
+              emissive: color,
+              emissiveIntensity: 0.8,
+              roughness: 0.3,
+            }),
+          );
+          crystal.position.set(spec.x, h / 2, spec.z);
+          scene.add(crystal);
+          break;
+        }
+        case 'ice': {
+          const h = spec.size ?? 2.2;
+          const ice = new THREE.Mesh(new THREE.ConeGeometry(0.55, h, 7), iceMat);
+          ice.position.set(spec.x, h / 2, spec.z);
+          scene.add(ice);
+          break;
+        }
+        case 'pillar': {
+          const h = spec.size ?? 3;
+          const pillar = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.5, 0.62, h, 10),
+            pillarMat,
+          );
+          pillar.position.set(spec.x, h / 2, spec.z);
+          scene.add(pillar);
+          break;
+        }
+      }
     }
-
-    const portalSurface = this.buildPortalMeshes(scene, portal, 0x7df9ff);
-    return { scene, portalSurface };
   }
 
   /** ポータルの門枠と「向こう側」を映す面を配置し、面メッシュを返す */
@@ -266,6 +368,7 @@ export class ThreeRendererAdapter {
     scene: THREE.Scene,
     portal: Portal,
     frameColor: number,
+    material: THREE.ShaderMaterial,
   ): THREE.Mesh {
     const group = new THREE.Group();
     group.position.set(portal.position.x, 0, portal.position.z);
@@ -288,12 +391,8 @@ export class ThreeRendererAdapter {
     lintel.position.set(0, h + t / 2, 0);
     group.add(left, right, lintel);
 
-    const surface = new THREE.Mesh(
-      new THREE.PlaneGeometry(w, h),
-      this.portalMaterial,
-    );
+    const surface = new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
     surface.position.y = h / 2;
-    (surface.material as THREE.ShaderMaterial).side = THREE.DoubleSide;
     group.add(surface);
 
     scene.add(group);

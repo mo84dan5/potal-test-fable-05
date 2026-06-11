@@ -4,8 +4,8 @@ import { Portal } from '../entities/Portal';
 import { Vec3 } from '../values/Vec3';
 import { PortalTraversalService } from './PortalTraversalService';
 
-const portalA = new Portal(new Vec3(0, 0, -6), 0, 1.4, 3, 'night');
-const portalB = new Portal(new Vec3(10, 0, 20), Math.PI / 2, 1.4, 3, 'day');
+const portalA = new Portal('day-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'night', 'night-p1');
+const portalB = new Portal('night-p1', new Vec3(10, 0, 20), Math.PI / 2, 1.4, 3, 'day', 'day-p1');
 const service = new PortalTraversalService();
 
 describe('PortalTraversalService.hasCrossed', () => {

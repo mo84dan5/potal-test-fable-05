@@ -25,10 +25,10 @@ export class TickUseCase {
     // 押し出し後の位置でポータル判定する(押し戻されたフレームの誤通過を防ぐ)
     this.collision.resolve(player, this.session.currentWorld.colliders);
 
-    const portal = this.session.currentWorld.portal;
-    if (this.traversal.hasCrossed(portal, before, player.position)) {
+    for (const portal of this.session.currentWorld.portals) {
+      if (!this.traversal.hasCrossed(portal, before, player.position)) continue;
       const dest = this.session.getWorld(portal.targetWorldId);
-      this.traversal.traverse(player, portal, dest.portal);
+      this.traversal.traverse(player, portal, dest.getPortal(portal.targetPortalId));
       this.session.moveToWorld(dest.id);
       return { traversed: true };
     }

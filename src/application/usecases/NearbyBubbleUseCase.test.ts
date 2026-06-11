@@ -12,10 +12,10 @@ import { NearbyBubbleUseCase } from './NearbyBubbleUseCase';
 const buildSession = (interactables: Interactable[]): GameSession => {
   const a = new World(
     'day', '昼',
-    new Portal(new Vec3(0, 0, -6), 0, 1.4, 3, 'night'),
+    [new Portal('day-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'night', 'night-p1')],
     interactables,
   );
-  const b = new World('night', '夜', new Portal(new Vec3(0, 0, -6), 0, 1.4, 3, 'day'));
+  const b = new World('night', '夜', [new Portal('night-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'day', 'day-p1')]);
   return new GameSession([a, b], 'day', new Player(Vec3.ZERO, Vec3.ZERO, 0, 0));
 };
 

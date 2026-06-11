@@ -9,8 +9,8 @@ import { PortalTraversalService } from '../../domain/services/PortalTraversalSer
 import { TickUseCase } from './TickUseCase';
 
 const buildSession = (player: Player): GameSession => {
-  const a = new World('day', '昼', new Portal(new Vec3(0, 0, -6), 0, 1.4, 3, 'night'));
-  const b = new World('night', '夜', new Portal(new Vec3(0, 0, -6), 0, 1.4, 3, 'day'));
+  const a = new World('day', '昼', [new Portal('day-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'night', 'night-p1')]);
+  const b = new World('night', '夜', [new Portal('night-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'day', 'day-p1')]);
   return new GameSession([a, b], 'day', player);
 };
 
@@ -52,15 +52,35 @@ describe('TickUseCase', () => {
     expect(session.currentWorldId).toBe('day');
   });
 
+  it('1ワールドに複数ポータルがあっても、横切ったポータルの接続先へ通過する', () => {
+    // 2基目: x=6 に立ち -X 向き(yaw=-π/2)。雪の世界の snow-p1 と対
+    const p1 = new Portal('day-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'night', 'night-p1');
+    const p2 = new Portal('day-p2', new Vec3(6, 0, 0), -Math.PI / 2, 1.4, 3, 'snow', 'snow-p1');
+    const day = new World('day', '昼', [p1, p2]);
+    const night = new World('night', '夜', [
+      new Portal('night-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'day', 'day-p1'),
+    ]);
+    const snow = new World('snow', '雪', [
+      new Portal('snow-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'day', 'day-p2'),
+    ]);
+    const player = new Player(new Vec3(5, 0, 0), new Vec3(4, 0, 0), 0, 0);
+    const session = new GameSession([day, night, snow], 'day', player);
+
+    const result = buildTick(session).execute(0.3); // x=5 → 6.2 で p2 面を横切る
+
+    expect(result.traversed).toBe(true);
+    expect(session.currentWorldId).toBe('snow'); // p1(夜)ではなく p2 の接続先
+  });
+
   it('コライダーのあるオブジェクトはすり抜けられない(押し出し+壁ずり)', () => {
     const player = new Player(new Vec3(0, 0, 0), new Vec3(0, 0, -6), 0, 0);
     const rock = { position: new Vec3(0, 0, -2), radius: 0.5 };
     const a = new World(
       'day', '昼',
-      new Portal(new Vec3(0, 0, -6), 0, 1.4, 3, 'night'),
+      [new Portal('day-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'night', 'night-p1')],
       [], [rock],
     );
-    const b = new World('night', '夜', new Portal(new Vec3(0, 0, -6), 0, 1.4, 3, 'day'));
+    const b = new World('night', '夜', [new Portal('night-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'day', 'day-p1')]);
     const session = new GameSession([a, b], 'day', player);
 
     const result = buildTick(session).execute(0.3); // 衝突なしなら z=-1.8(石の内側)まで進む
