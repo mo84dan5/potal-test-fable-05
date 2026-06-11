@@ -21,9 +21,18 @@ const DASH_MIN_DISTANCE = 40; // [px] はじき とみなす最小距離
 type Mode = 'idle' | 'stick' | 'look';
 
 /**
+ * タッチ開始位置から操作ゾーンを判定する。
+ * 画面の上半分(境界含まず)= 見回し、下半分(中央線含む)= 移動。
+ */
+export function zoneForTouch(y: number, screenHeight: number): 'look' | 'stick' {
+  return y < screenHeight / 2 ? 'look' : 'stick';
+}
+
+/**
  * タッチ入力アダプタ。
- * 1本指: 吸い付き型の仮想パッド(移動・はじきダッシュ)。
- * 2本指: 見回しスワイプ(2本目が触れた時点でスティックは終了し、全指を離すまで見回しモード)。
+ * 1本指・下半分開始: 吸い付き型の仮想パッド(移動・はじきダッシュ)。
+ * 1本指・上半分開始: 見回しスワイプ。
+ * 2本指: 開始位置によらず見回しスワイプ(2本目が触れた時点でスティックは終了し、全指を離すまで見回しモード)。
  * パッドUI(ベース円+ノブ)のDOM表示もこのアダプタが担う。
  */
 export class VirtualStickInputAdapter {
@@ -71,6 +80,11 @@ export class VirtualStickInputAdapter {
     this.element.setPointerCapture(e.pointerId);
 
     if (this.mode === 'idle') {
+      // 開始位置の上下でモードを決定(ジェスチャ中は変わらない)
+      if (zoneForTouch(e.clientY, window.innerHeight) === 'look') {
+        this.mode = 'look';
+        return;
+      }
       this.mode = 'stick';
       this.stickPointerId = e.pointerId;
       this.originX = e.clientX;
