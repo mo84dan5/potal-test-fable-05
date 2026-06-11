@@ -98,6 +98,72 @@
         background: rgba(255, 255, 255, 0.55);
         box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
       }
+      #bubble {
+        position: fixed;
+        transform: translate(-50%, -100%);
+        max-width: 70vw;
+        padding: 8px 14px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.92);
+        color: #222;
+        font-size: 14px;
+        white-space: nowrap;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-select: none;
+        opacity: 0;
+        transition: opacity 0.15s;
+        z-index: 20;
+      }
+      #bubble::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        bottom: -8px;
+        transform: translateX(-50%);
+        border: 8px solid transparent;
+        border-top-color: rgba(255, 255, 255, 0.92);
+        border-bottom: none;
+      }
+      #bubble.visible {
+        opacity: 1;
+      }
+      #dialog {
+        position: fixed;
+        left: 50%;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+        transform: translateX(-50%);
+        width: min(92vw, 560px);
+        box-sizing: border-box;
+        padding: 16px 18px 12px;
+        border-radius: 14px;
+        border: 2px solid rgba(255, 255, 255, 0.6);
+        background: rgba(10, 14, 40, 0.82);
+        backdrop-filter: blur(6px);
+        color: #fff;
+        font-size: 15px;
+        line-height: 1.6;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-select: none;
+        display: none;
+        z-index: 30;
+      }
+      #dialog.visible {
+        display: block;
+      }
+      #dialog .next {
+        margin-top: 6px;
+        text-align: right;
+        font-size: 12px;
+        opacity: 0.7;
+        animation: blink 1.2s infinite;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0.2;
+        }
+      }
     </style>
   </head>
   <body>
@@ -107,6 +173,11 @@
       <span id="world-name">昼の世界</span>
     </div>
     <div id="hint">下半分で移動 / 上半分で見回し / はじくとダッシュ</div>
+    <div id="bubble"></div>
+    <div id="dialog">
+      <div id="dialog-text"></div>
+      <div class="next">タップで進む ▼</div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

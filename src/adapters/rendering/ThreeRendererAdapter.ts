@@ -2,6 +2,15 @@ import * as THREE from 'three';
 import { GameSession } from '../../domain/entities/GameSession';
 import { Player } from '../../domain/entities/Player';
 import { Portal } from '../../domain/entities/Portal';
+import { Vec3 } from '../../domain/values/Vec3';
+import { DAY_OBJECTS, NIGHT_OBJECTS } from '../../config/worldContent';
+
+export interface ScreenPoint {
+  x: number;
+  y: number;
+  /** カメラの前方かつ画面近傍に投影されたか */
+  visible: boolean;
+}
 
 interface WorldView {
   scene: THREE.Scene;
@@ -71,6 +80,16 @@ export class ThreeRendererAdapter {
 
   get canvas(): HTMLCanvasElement {
     return this.renderer.domElement;
+  }
+
+  /** ワールド座標をスクリーン座標 [px] へ投影する(吹き出しの位置決め用) */
+  projectToScreen(p: Vec3): ScreenPoint {
+    const v = new THREE.Vector3(p.x, p.y, p.z).project(this.camera);
+    return {
+      x: ((v.x + 1) / 2) * window.innerWidth,
+      y: ((1 - v.y) / 2) * window.innerHeight,
+      visible: v.z > -1 && v.z < 1 && Math.abs(v.x) < 1.1 && Math.abs(v.y) < 1.1,
+    };
   }
 
   render(): void {
@@ -160,28 +179,23 @@ export class ThreeRendererAdapter {
 
     const trunkMat = new THREE.MeshLambertMaterial({ color: 0x7a5230 });
     const leafMat = new THREE.MeshLambertMaterial({ color: 0x2e8b57 });
-    const treeSpots: Array<[number, number]> = [
-      [-8, -2], [9, -4], [-12, 8], [13, 9], [-5, 14], [6, 16], [-15, -8], [16, -10],
-    ];
-    for (const [x, z] of treeSpots) {
-      const tree = new THREE.Group();
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 2.2, 8), trunkMat);
-      trunk.position.y = 1.1;
-      const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3.2, 10), leafMat);
-      leaves.position.y = 3.6;
-      tree.add(trunk, leaves);
-      tree.position.set(x, 0, z);
-      scene.add(tree);
-    }
-
     const rockMat = new THREE.MeshLambertMaterial({ color: 0x9b9b8f });
-    const rockSpots: Array<[number, number, number]> = [
-      [4, 6, 0.7], [-6, 5, 0.5], [10, 2, 0.9], [-3, -12, 0.6],
-    ];
-    for (const [x, z, s] of rockSpots) {
-      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s), rockMat);
-      rock.position.set(x, s * 0.6, z);
-      scene.add(rock);
+    for (const spec of DAY_OBJECTS) {
+      if (spec.kind === 'tree') {
+        const tree = new THREE.Group();
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 2.2, 8), trunkMat);
+        trunk.position.y = 1.1;
+        const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3.2, 10), leafMat);
+        leaves.position.y = 3.6;
+        tree.add(trunk, leaves);
+        tree.position.set(spec.x, 0, spec.z);
+        scene.add(tree);
+      } else if (spec.kind === 'rock') {
+        const s = spec.size ?? 0.6;
+        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s), rockMat);
+        rock.position.set(spec.x, s * 0.6, spec.z);
+        scene.add(rock);
+      }
     }
 
     const portalSurface = this.buildPortalMeshes(scene, portal, 0xffc04d);
@@ -226,11 +240,10 @@ export class ThreeRendererAdapter {
       new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.4 })),
     );
 
-    const crystalSpots: Array<[number, number, number, number]> = [
-      [-7, -3, 1.6, 0x66ffee], [8, -5, 2.2, 0xff66dd], [-11, 7, 1.8, 0x66aaff],
-      [12, 10, 1.4, 0xaaff66], [-4, 13, 2.0, 0xff9966], [5, 17, 1.7, 0x66ffee],
-    ];
-    for (const [x, z, h, color] of crystalSpots) {
+    for (const spec of NIGHT_OBJECTS) {
+      if (spec.kind !== 'crystal') continue;
+      const h = spec.size ?? 1.6;
+      const color = spec.color ?? 0x66ffee;
       const crystal = new THREE.Mesh(
         new THREE.ConeGeometry(0.5, h, 6),
         new THREE.MeshStandardMaterial({
@@ -240,7 +253,7 @@ export class ThreeRendererAdapter {
           roughness: 0.3,
         }),
       );
-      crystal.position.set(x, h / 2, z);
+      crystal.position.set(spec.x, h / 2, spec.z);
       scene.add(crystal);
     }
 

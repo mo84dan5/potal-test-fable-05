@@ -12,11 +12,15 @@ export interface VirtualStickCallbacks {
   onDash(dx: number, dy: number): void;
   /** 見回しスワイプの移動デルタ [px](右・下が正、指の本数で平均化済み) */
   onLook(dx: number, dy: number): void;
+  /** タップ(短時間・微小移動で離した)した瞬間 */
+  onTap(x: number, y: number): void;
 }
 
 const STICK_RADIUS = 70; // [px] ベース円の半径(正規化の分母)
 const DASH_MAX_TIME = 250; // [ms] はじき とみなす最大接触時間
 const DASH_MIN_DISTANCE = 40; // [px] はじき とみなす最小距離
+const TAP_MAX_TIME = 300; // [ms] タップとみなす最大接触時間
+const TAP_MAX_DISTANCE = 10; // [px] タップとみなす最大移動量
 
 type Mode = 'idle' | 'stick' | 'look';
 
@@ -38,6 +42,8 @@ export function zoneForTouch(y: number, screenHeight: number): 'look' | 'stick' 
 export class VirtualStickInputAdapter {
   private mode: Mode = 'idle';
   private readonly pointers = new Map<number, { x: number; y: number }>();
+  /** タップ判定用: ポインタごとの開始位置・時刻 */
+  private readonly starts = new Map<number, { x: number; y: number; t: number }>();
 
   private stickPointerId: number | null = null;
   private originX = 0;
@@ -77,6 +83,7 @@ export class VirtualStickInputAdapter {
 
   private readonly onDown = (e: PointerEvent): void => {
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    this.starts.set(e.pointerId, { x: e.clientX, y: e.clientY, t: e.timeStamp });
     this.element.setPointerCapture(e.pointerId);
 
     if (this.mode === 'idle') {
@@ -132,6 +139,8 @@ export class VirtualStickInputAdapter {
   private readonly onUp = (e: PointerEvent): void => {
     if (!this.pointers.has(e.pointerId)) return;
     this.pointers.delete(e.pointerId);
+    const start = this.starts.get(e.pointerId);
+    this.starts.delete(e.pointerId);
 
     if (this.mode === 'stick' && e.pointerId === this.stickPointerId) {
       // 停止 → ダッシュの順で通知し、はじいた場合はダッシュの勢いだけが残る
@@ -147,11 +156,21 @@ export class VirtualStickInputAdapter {
     } else if (this.mode === 'look' && this.pointers.size === 0) {
       this.mode = 'idle';
     }
+
+    // タップ: 最後の1本が短時間・微小移動で離れたとき(ダッシュとは距離で排他)
+    if (start && this.pointers.size === 0) {
+      const elapsed = e.timeStamp - start.t;
+      const dist = Math.hypot(e.clientX - start.x, e.clientY - start.y);
+      if (elapsed < TAP_MAX_TIME && dist < TAP_MAX_DISTANCE) {
+        this.callbacks.onTap(e.clientX, e.clientY);
+      }
+    }
   };
 
   private readonly onCancel = (e: PointerEvent): void => {
     if (!this.pointers.has(e.pointerId)) return;
     this.pointers.delete(e.pointerId);
+    this.starts.delete(e.pointerId);
 
     if (this.mode === 'stick' && e.pointerId === this.stickPointerId) {
       this.endStick();

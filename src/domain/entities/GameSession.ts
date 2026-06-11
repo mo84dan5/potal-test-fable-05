@@ -1,8 +1,12 @@
+import { DialogueSession } from './DialogueSession';
 import { Player } from './Player';
 import { World } from './World';
 
 /** ゲーム全体の状態を束ねる集約ルート */
 export class GameSession {
+  /** 表示中のメッセージウィンドウ。null なら非表示 */
+  public dialogue: DialogueSession | null = null;
+
   private readonly worlds: Map<string, World>;
 
   constructor(
