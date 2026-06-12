@@ -18,16 +18,18 @@ describe('zoneForTouch', () => {
 });
 
 describe('roleForTouch', () => {
-  it('スティック役が不在で下半分から開始したタッチは移動になる', () => {
-    expect(roleForTouch(false, 'stick')).toBe('stick');
+  it('最初の指は開始ゾーンで決まる(下半分=移動、上半分=見回し)', () => {
+    expect(roleForTouch(false, false, 'stick')).toBe('stick');
+    expect(roleForTouch(false, false, 'look')).toBe('look');
   });
 
-  it('移動中(スティック役あり)の2本目はゾーンによらず見回しになる', () => {
-    expect(roleForTouch(true, 'stick')).toBe('look');
-    expect(roleForTouch(true, 'look')).toBe('look');
+  it('1本目が移動中の2本目は、位置によらず見回しになる', () => {
+    expect(roleForTouch(true, true, 'stick')).toBe('look');
+    expect(roleForTouch(true, true, 'look')).toBe('look');
   });
 
-  it('上半分から開始したタッチは見回しになる', () => {
-    expect(roleForTouch(false, 'look')).toBe('look');
+  it('1本目が見回し中の2本目は、位置によらず移動になる', () => {
+    expect(roleForTouch(false, true, 'stick')).toBe('stick');
+    expect(roleForTouch(false, true, 'look')).toBe('stick');
   });
 });

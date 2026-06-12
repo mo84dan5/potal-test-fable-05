@@ -34,17 +34,23 @@ export function zoneForTouch(y: number, screenHeight: number): 'look' | 'stick' 
 
 /**
  * 新しいタッチの役割を決める。
- * スティック役が不在かつ下半分から開始したタッチだけが移動(stick)になり、
- * それ以外(スティック役がいる間の2本目、または上半分開始)は見回し(look)になる。
+ * 最初の指はタッチ開始ゾーンで決まり(上半分=見回し / 下半分=移動)、
+ * 2本目以降の指は位置によらず「もう一方の役割」になる:
+ * スティック役がいれば見回し、いなければ移動。
  */
-export function roleForTouch(hasStickPointer: boolean, zone: 'look' | 'stick'): Role {
-  return !hasStickPointer && zone === 'stick' ? 'stick' : 'look';
+export function roleForTouch(
+  hasStickPointer: boolean,
+  hasAnyPointer: boolean,
+  zone: 'look' | 'stick',
+): Role {
+  if (!hasAnyPointer) return zone;
+  return hasStickPointer ? 'look' : 'stick';
 }
 
 /**
  * タッチ入力アダプタ(ツインスティック型)。
- * 指ごとに役割を割り当てる: 最初に下半分へ触れた指が移動スティック、
- * それ以外の指は見回しスワイプ。移動を続けたまま2本目で見回しできる。
+ * 指ごとに役割を割り当てる: 最初の指はゾーンで決まり(下半分=移動 / 上半分=見回し)、
+ * 2本目の指は位置によらずもう一方の役割になる。移動と見回しを同時に操作できる。
  * パッドUI(ベース円+ノブ)のDOM表示もこのアダプタが担う。
  */
 export class VirtualStickInputAdapter {
@@ -96,14 +102,15 @@ export class VirtualStickInputAdapter {
   }
 
   private readonly onDown = (e: PointerEvent): void => {
+    // 役割はこの指を登録する前の状態(他の指の有無)で決める
+    const role = roleForTouch(
+      this.stickPointerId !== null,
+      this.pointers.size > 0,
+      zoneForTouch(e.clientY, window.innerHeight),
+    );
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     this.starts.set(e.pointerId, { x: e.clientX, y: e.clientY, t: e.timeStamp });
     this.element.setPointerCapture(e.pointerId);
-
-    const role = roleForTouch(
-      this.stickPointerId !== null,
-      zoneForTouch(e.clientY, window.innerHeight),
-    );
     this.roles.set(e.pointerId, role);
     if (role !== 'stick') return;
 
