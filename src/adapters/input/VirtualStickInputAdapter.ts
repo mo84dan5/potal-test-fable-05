@@ -6,11 +6,11 @@ export interface StickState {
 }
 
 export interface VirtualStickCallbacks {
-  /** 移動スティックが終わった瞬間(指を離した/2本目が触れた)。はじき判定より先に呼ばれる */
+  /** 移動スティックの指を離した瞬間。はじき判定より先に呼ばれる */
   onStickEnd(): void;
   /** はじいて離した瞬間(ダッシュ)。dx/dy はスワイプ全体の移動量 [px] */
   onDash(dx: number, dy: number): void;
-  /** 見回しスワイプの移動デルタ [px](右・下が正、指の本数で平均化済み) */
+  /** 見回しスワイプの移動デルタ [px](右・下が正、見回し役の指の本数で平均化済み) */
   onLook(dx: number, dy: number): void;
   /** タップ(短時間・微小移動で離した)した瞬間 */
   onTap(x: number, y: number): void;
@@ -22,7 +22,7 @@ const DASH_MIN_DISTANCE = 40; // [px] はじき とみなす最小距離
 const TAP_MAX_TIME = 300; // [ms] タップとみなす最大接触時間
 const TAP_MAX_DISTANCE = 10; // [px] タップとみなす最大移動量
 
-type Mode = 'idle' | 'stick' | 'look';
+type Role = 'stick' | 'look';
 
 /**
  * タッチ開始位置から操作ゾーンを判定する。
@@ -33,15 +33,23 @@ export function zoneForTouch(y: number, screenHeight: number): 'look' | 'stick' 
 }
 
 /**
- * タッチ入力アダプタ。
- * 1本指・下半分開始: 吸い付き型の仮想パッド(移動・はじきダッシュ)。
- * 1本指・上半分開始: 見回しスワイプ。
- * 2本指: 開始位置によらず見回しスワイプ(2本目が触れた時点でスティックは終了し、全指を離すまで見回しモード)。
+ * 新しいタッチの役割を決める。
+ * スティック役が不在かつ下半分から開始したタッチだけが移動(stick)になり、
+ * それ以外(スティック役がいる間の2本目、または上半分開始)は見回し(look)になる。
+ */
+export function roleForTouch(hasStickPointer: boolean, zone: 'look' | 'stick'): Role {
+  return !hasStickPointer && zone === 'stick' ? 'stick' : 'look';
+}
+
+/**
+ * タッチ入力アダプタ(ツインスティック型)。
+ * 指ごとに役割を割り当てる: 最初に下半分へ触れた指が移動スティック、
+ * それ以外の指は見回しスワイプ。移動を続けたまま2本目で見回しできる。
  * パッドUI(ベース円+ノブ)のDOM表示もこのアダプタが担う。
  */
 export class VirtualStickInputAdapter {
-  private mode: Mode = 'idle';
   private readonly pointers = new Map<number, { x: number; y: number }>();
+  private readonly roles = new Map<number, Role>();
   /** タップ判定用: ポインタごとの開始位置・時刻 */
   private readonly starts = new Map<number, { x: number; y: number; t: number }>();
 
@@ -81,40 +89,40 @@ export class VirtualStickInputAdapter {
     this.knob.remove();
   }
 
+  private lookPointerCount(): number {
+    let count = 0;
+    for (const role of this.roles.values()) if (role === 'look') count++;
+    return count;
+  }
+
   private readonly onDown = (e: PointerEvent): void => {
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     this.starts.set(e.pointerId, { x: e.clientX, y: e.clientY, t: e.timeStamp });
     this.element.setPointerCapture(e.pointerId);
 
-    if (this.mode === 'idle') {
-      // 開始位置の上下でモードを決定(ジェスチャ中は変わらない)
-      if (zoneForTouch(e.clientY, window.innerHeight) === 'look') {
-        this.mode = 'look';
-        return;
-      }
-      this.mode = 'stick';
-      this.stickPointerId = e.pointerId;
-      this.originX = e.clientX;
-      this.originY = e.clientY;
-      this.startTime = e.timeStamp;
-      this.stick = { x: 0, y: 0 };
-      moveTo(this.base, this.originX, this.originY);
-      moveTo(this.knob, this.originX, this.originY);
-      this.base.style.display = 'block';
-      this.knob.style.display = 'block';
-    } else if (this.mode === 'stick') {
-      // 2本目の指: 移動を即時終了して見回しモードへ
-      this.endStick();
-      this.mode = 'look';
-    }
-    // look モード中の追加タッチはそのまま見回しに参加する
+    const role = roleForTouch(
+      this.stickPointerId !== null,
+      zoneForTouch(e.clientY, window.innerHeight),
+    );
+    this.roles.set(e.pointerId, role);
+    if (role !== 'stick') return;
+
+    this.stickPointerId = e.pointerId;
+    this.originX = e.clientX;
+    this.originY = e.clientY;
+    this.startTime = e.timeStamp;
+    this.stick = { x: 0, y: 0 };
+    moveTo(this.base, this.originX, this.originY);
+    moveTo(this.knob, this.originX, this.originY);
+    this.base.style.display = 'block';
+    this.knob.style.display = 'block';
   };
 
   private readonly onMove = (e: PointerEvent): void => {
     const prev = this.pointers.get(e.pointerId);
     if (!prev) return;
 
-    if (this.mode === 'stick' && e.pointerId === this.stickPointerId) {
+    if (e.pointerId === this.stickPointerId) {
       let dx = e.clientX - this.originX;
       let dy = e.clientY - this.originY;
       const len = Math.hypot(dx, dy);
@@ -124,9 +132,9 @@ export class VirtualStickInputAdapter {
       }
       this.stick = { x: dx / STICK_RADIUS, y: dy / STICK_RADIUS };
       moveTo(this.knob, this.originX + dx, this.originY + dy);
-    } else if (this.mode === 'look') {
-      // 指ごとのデルタを本数で平均化して見回しに適用する
-      const scale = 1 / this.pointers.size;
+    } else if (this.roles.get(e.pointerId) === 'look') {
+      // 見回し役の指ごとのデルタを本数で平均化して適用する
+      const scale = 1 / Math.max(1, this.lookPointerCount());
       this.callbacks.onLook(
         (e.clientX - prev.x) * scale,
         (e.clientY - prev.y) * scale,
@@ -139,10 +147,11 @@ export class VirtualStickInputAdapter {
   private readonly onUp = (e: PointerEvent): void => {
     if (!this.pointers.has(e.pointerId)) return;
     this.pointers.delete(e.pointerId);
+    this.roles.delete(e.pointerId);
     const start = this.starts.get(e.pointerId);
     this.starts.delete(e.pointerId);
 
-    if (this.mode === 'stick' && e.pointerId === this.stickPointerId) {
+    if (e.pointerId === this.stickPointerId) {
       // 停止 → ダッシュの順で通知し、はじいた場合はダッシュの勢いだけが残る
       this.endStick();
 
@@ -152,9 +161,6 @@ export class VirtualStickInputAdapter {
       if (elapsed < DASH_MAX_TIME && Math.hypot(dx, dy) > DASH_MIN_DISTANCE) {
         this.callbacks.onDash(dx, dy);
       }
-      this.mode = 'idle';
-    } else if (this.mode === 'look' && this.pointers.size === 0) {
-      this.mode = 'idle';
     }
 
     // タップ: 最後の1本が短時間・微小移動で離れたとき(ダッシュとは距離で排他)
@@ -170,14 +176,9 @@ export class VirtualStickInputAdapter {
   private readonly onCancel = (e: PointerEvent): void => {
     if (!this.pointers.has(e.pointerId)) return;
     this.pointers.delete(e.pointerId);
+    this.roles.delete(e.pointerId);
     this.starts.delete(e.pointerId);
-
-    if (this.mode === 'stick' && e.pointerId === this.stickPointerId) {
-      this.endStick();
-      this.mode = 'idle';
-    } else if (this.mode === 'look' && this.pointers.size === 0) {
-      this.mode = 'idle';
-    }
+    if (e.pointerId === this.stickPointerId) this.endStick();
   };
 
   /** スティック操作を終了して停止を通知し、パッドUIを隠す */
