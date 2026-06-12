@@ -214,7 +214,7 @@ export class ThreeRendererAdapter {
         const sun = new THREE.DirectionalLight(0xfff4d6, 1.4);
         sun.position.set(10, 20, 8);
         scene.add(sun);
-        this.addGround(scene, 0x5cab5c);
+        this.addGround(scene, 'grass');
         break;
       }
       case 'night': {
@@ -224,7 +224,7 @@ export class ThreeRendererAdapter {
         const moonLight = new THREE.DirectionalLight(0xaabbff, 0.7);
         moonLight.position.set(-8, 18, -6);
         scene.add(moonLight);
-        this.addGround(scene, 0x3c2f5c);
+        this.addGround(scene, 'dirt');
 
         const moon = new THREE.Mesh(
           new THREE.SphereGeometry(2.4, 24, 24),
@@ -242,7 +242,7 @@ export class ThreeRendererAdapter {
         const winterSun = new THREE.DirectionalLight(0xeef6ff, 0.9);
         winterSun.position.set(6, 16, 10);
         scene.add(winterSun);
-        this.addGround(scene, 0xf4f8fc);
+        this.addGround(scene, 'snow');
         break;
       }
       case 'ruins': {
@@ -252,7 +252,7 @@ export class ThreeRendererAdapter {
         const dusk = new THREE.DirectionalLight(0xffa45e, 1.1);
         dusk.position.set(-12, 8, -10);
         scene.add(dusk);
-        this.addGround(scene, 0xc9a36a);
+        this.addGround(scene, 'stone');
 
         const sun = new THREE.Mesh(
           new THREE.SphereGeometry(3, 24, 24),
@@ -265,10 +265,16 @@ export class ThreeRendererAdapter {
     }
   }
 
-  private addGround(scene: THREE.Scene, color: number): void {
+  private addGround(scene: THREE.Scene, pattern: GroundPattern): void {
+    const texture = createGroundTexture(pattern);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(10, 10);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+
     const ground = new THREE.Mesh(
       new THREE.CircleGeometry(40, 48),
-      new THREE.MeshLambertMaterial({ color }),
+      new THREE.MeshLambertMaterial({ map: texture }),
     );
     ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
@@ -398,4 +404,145 @@ export class ThreeRendererAdapter {
     scene.add(group);
     return surface;
   }
+}
+
+// --- 地面のプロシージャル模様(外部アセット不要・シード付きで決定的) ---
+
+type GroundPattern = 'grass' | 'dirt' | 'snow' | 'stone';
+
+/** 線形合同法の擬似乱数(リロードしても同じ模様になる) */
+function seededRandom(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 0x100000000;
+  };
+}
+
+function createGroundTexture(pattern: GroundPattern): THREE.CanvasTexture {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return new THREE.CanvasTexture(canvas);
+  const rand = seededRandom(0xc0ffee);
+
+  switch (pattern) {
+    case 'grass': {
+      ctx.fillStyle = '#5cab5c';
+      ctx.fillRect(0, 0, size, size);
+      // まだら(明暗のパッチ)
+      for (let i = 0; i < 24; i++) {
+        ctx.fillStyle = rand() < 0.5 ? 'rgba(60,120,60,0.18)' : 'rgba(140,200,120,0.14)';
+        const r = 12 + rand() * 26;
+        ctx.beginPath();
+        ctx.ellipse(rand() * size, rand() * size, r, r * (0.5 + rand() * 0.5), rand() * Math.PI, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // 草むらの短いタッチ
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 260; i++) {
+        const x = rand() * size;
+        const y = rand() * size;
+        const len = 3 + rand() * 5;
+        const lean = (rand() - 0.5) * 3;
+        ctx.strokeStyle = rand() < 0.5 ? 'rgba(40,100,45,0.55)' : 'rgba(120,190,100,0.5)';
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + lean, y - len);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'dirt': {
+      ctx.fillStyle = '#3c2f5c';
+      ctx.fillRect(0, 0, size, size);
+      for (let i = 0; i < 22; i++) {
+        ctx.fillStyle = rand() < 0.5 ? 'rgba(35,25,70,0.35)' : 'rgba(90,70,140,0.18)';
+        const r = 14 + rand() * 30;
+        ctx.beginPath();
+        ctx.ellipse(rand() * size, rand() * size, r, r * (0.4 + rand() * 0.5), rand() * Math.PI, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // かすかに光る粒
+      for (let i = 0; i < 90; i++) {
+        const a = 0.25 + rand() * 0.45;
+        ctx.fillStyle = rand() < 0.3 ? `rgba(170,150,255,${a})` : `rgba(110,95,180,${a})`;
+        const r = 0.6 + rand() * 1.4;
+        ctx.beginPath();
+        ctx.arc(rand() * size, rand() * size, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'snow': {
+      ctx.fillStyle = '#f4f8fc';
+      ctx.fillRect(0, 0, size, size);
+      // 風紋(なだらかな波線)
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 9; i++) {
+        const baseY = (i + rand() * 0.6) * (size / 9);
+        ctx.strokeStyle = 'rgba(200,220,238,0.7)';
+        ctx.beginPath();
+        ctx.moveTo(0, baseY);
+        for (let x = 0; x <= size; x += 16) {
+          ctx.lineTo(x, baseY + Math.sin((x / size) * Math.PI * 2 + i) * 5 + (rand() - 0.5) * 2);
+        }
+        ctx.stroke();
+      }
+      // きらめき
+      for (let i = 0; i < 70; i++) {
+        ctx.fillStyle = rand() < 0.4 ? 'rgba(255,255,255,0.9)' : 'rgba(190,215,245,0.6)';
+        const r = 0.6 + rand() * 1.2;
+        ctx.beginPath();
+        ctx.arc(rand() * size, rand() * size, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      break;
+    }
+    case 'stone': {
+      ctx.fillStyle = '#c9a36a';
+      ctx.fillRect(0, 0, size, size);
+      // 石畳(4×4タイルの目地。端の線はタイル境界でリピートが繋がる)
+      const tile = size / 4;
+      ctx.strokeStyle = 'rgba(140,105,60,0.85)';
+      ctx.lineWidth = 3;
+      for (let i = 0; i <= 4; i++) {
+        const o = i * tile;
+        ctx.beginPath();
+        ctx.moveTo(o, 0);
+        ctx.lineTo(o, size);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, o);
+        ctx.lineTo(size, o);
+        ctx.stroke();
+      }
+      // タイルごとの色むら
+      for (let ty = 0; ty < 4; ty++) {
+        for (let tx = 0; tx < 4; tx++) {
+          ctx.fillStyle = `rgba(${150 + rand() * 60},${115 + rand() * 45},${60 + rand() * 35},0.25)`;
+          ctx.fillRect(tx * tile + 2, ty * tile + 2, tile - 4, tile - 4);
+        }
+      }
+      // ひび
+      ctx.strokeStyle = 'rgba(120,90,50,0.6)';
+      ctx.lineWidth = 1.2;
+      for (let i = 0; i < 7; i++) {
+        let x = rand() * size;
+        let y = rand() * size;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        for (let step = 0; step < 5; step++) {
+          x += (rand() - 0.5) * 30;
+          y += (rand() - 0.5) * 30;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      break;
+    }
+  }
+
+  return new THREE.CanvasTexture(canvas);
 }
