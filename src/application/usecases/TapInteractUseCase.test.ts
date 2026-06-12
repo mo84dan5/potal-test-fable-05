@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GameSession } from '../../domain/entities/GameSession';
 import { Interactable } from '../../domain/entities/Interactable';
+import { Npc } from '../../domain/entities/Npc';
 import { Player } from '../../domain/entities/Player';
 import { Portal } from '../../domain/entities/Portal';
 import { World } from '../../domain/entities/World';
@@ -44,6 +45,19 @@ describe('TapInteractUseCase', () => {
     const session = buildSession([tree]);
     buildUseCase(session).execute();
     expect(session.dialogue).toBeNull();
+  });
+
+  it('近くの案内人NPC(動くInteractable)をタップすると世界の説明が開く', () => {
+    const npc = new Npc(
+      'npc', '案内人',
+      new Vec3(2, 0, 0), 2.0,
+      'こんにちは!', ['ここは昼の世界。', '門の先は夜の世界だよ。'],
+      new Vec3(2, 0, 0), 5,
+    );
+    const session = buildSession([npc]);
+    buildUseCase(session).execute();
+    expect(session.dialogue).not.toBeNull();
+    expect(session.dialogue!.currentLine).toBe('ここは昼の世界。');
   });
 
   it('表示中にタップするとコメントが進み、最後のタップで閉じる', () => {

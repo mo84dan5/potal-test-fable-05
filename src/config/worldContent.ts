@@ -38,11 +38,26 @@ export interface PortalSpec {
   frameColor: number;
 }
 
+export interface NpcSpec {
+  /** スポーン位置(足元) */
+  x: number;
+  z: number;
+  name: string;
+  /** 服の色 */
+  color: number;
+  /** 徘徊半径 [m] */
+  wanderRadius: number;
+  bubble: string;
+  /** タップ時の世界の説明 */
+  dialogue: string[];
+}
+
 export interface WorldDef {
   id: string;
   name: string;
   objects: WorldObjectSpec[];
   portals: PortalSpec[];
+  npc?: NpcSpec;
 }
 
 const TREE_BUBBLE = 'これは木です';
@@ -91,6 +106,15 @@ export const WORLD_DEFS: WorldDef[] = [
       { id: 'day-night', x: 0, z: -6, yaw: 0, targetWorldId: 'night', targetPortalId: 'night-day', frameColor: 0x7df9ff },
       { id: 'day-snow', x: 12, z: 2, yaw: -Math.PI / 2, targetWorldId: 'snow', targetPortalId: 'snow-day', frameColor: 0x9adcff },
     ],
+    npc: {
+      x: 4, z: -1, name: '案内人', color: 0xe06a3c, wanderRadius: 5,
+      bubble: 'こんにちは!',
+      dialogue: [
+        'やあ、旅人さん。ここは「昼の世界」。いつもおだやかな光に包まれているんだ。',
+        '木や石にも近づいてみるといい。何か教えてくれるかもしれないよ。',
+        '光る門はポータル。正面の門は「夜の世界」へ、右手の門は「雪の世界」へつながっている。',
+      ],
+    },
   },
   {
     id: 'night',
@@ -107,6 +131,15 @@ export const WORLD_DEFS: WorldDef[] = [
       { id: 'night-day', x: 0, z: -6, yaw: 0, targetWorldId: 'day', targetPortalId: 'day-night', frameColor: 0xffc04d },
       { id: 'night-ruins', x: -12, z: 2, yaw: Math.PI / 2, targetWorldId: 'ruins', targetPortalId: 'ruins-night', frameColor: 0xffa477 },
     ],
+    npc: {
+      x: -4, z: -1, name: '案内人', color: 0x7d5fd3, wanderRadius: 5,
+      bubble: 'こんばんは!',
+      dialogue: [
+        'ようこそ「夜の世界」へ。ここでは星とクリスタルが道を照らしてくれる。',
+        'クリスタルに触れてみるといい。ほんのり温かいんだ。',
+        '正面の門は「昼の世界」へ。左手の門の先は「黄昏の遺跡」、不思議な場所だよ。',
+      ],
+    },
   },
   {
     id: 'snow',
@@ -121,6 +154,15 @@ export const WORLD_DEFS: WorldDef[] = [
     portals: [
       { id: 'snow-day', x: 0, z: -6, yaw: 0, targetWorldId: 'day', targetPortalId: 'day-snow', frameColor: 0xffc04d },
     ],
+    npc: {
+      x: 4, z: 3, name: '案内人', color: 0x3f7fbf, wanderRadius: 5,
+      bubble: 'さむいねえ!',
+      dialogue: [
+        'ここは「雪の世界」。一年中、静かな雪に覆われているんだ。',
+        '氷柱の奥に何かが見える、なんて噂もある。確かめてみるかい?',
+        '門をくぐれば「昼の世界」へ戻れるよ。',
+      ],
+    },
   },
   {
     id: 'ruins',
@@ -136,6 +178,15 @@ export const WORLD_DEFS: WorldDef[] = [
     portals: [
       { id: 'ruins-night', x: 0, z: -6, yaw: 0, targetWorldId: 'night', targetPortalId: 'night-ruins', frameColor: 0x7df9ff },
     ],
+    npc: {
+      x: -5, z: 3, name: '案内人', color: 0xb3863e, wanderRadius: 5,
+      bubble: 'ようこそ!',
+      dialogue: [
+        'ここは「黄昏の遺跡」。沈まない夕日が照らす、古い都の跡さ。',
+        '柱の文字はもう誰にも読めない。遠い昔の言葉なんだ。',
+        '門の先は「夜の世界」。気をつけて行くんだよ。',
+      ],
+    },
   },
 ];
 

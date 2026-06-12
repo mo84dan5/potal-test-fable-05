@@ -1,5 +1,6 @@
 import { GameSession } from './domain/entities/GameSession';
 import { Interactable } from './domain/entities/Interactable';
+import { Npc } from './domain/entities/Npc';
 import { Player } from './domain/entities/Player';
 import { Portal } from './domain/entities/Portal';
 import { World } from './domain/entities/World';
@@ -67,6 +68,8 @@ const portalPillarColliders = (portal: Portal): Collider[] => {
   ];
 };
 
+const NPC_ANCHOR_Y = 2.0;
+
 const buildWorld = (def: WorldDef): World => {
   const portals = def.portals.map(
     (p) =>
@@ -80,12 +83,36 @@ const buildWorld = (def: WorldDef): World => {
         p.targetPortalId,
       ),
   );
+  const npcs = def.npc
+    ? [
+        new Npc(
+          `${def.id}-npc`,
+          def.npc.name,
+          new Vec3(def.npc.x, 0, def.npc.z),
+          NPC_ANCHOR_Y,
+          def.npc.bubble,
+          def.npc.dialogue,
+          new Vec3(def.npc.x, 0, def.npc.z),
+          def.npc.wanderRadius,
+          def.id.charCodeAt(0) * 7919, // ワールドごとに異なる決定的シード
+        ),
+      ]
+    : [];
   return new World(
     def.id,
     def.name,
     portals,
-    [...toInteractables(def.objects, def.id), ...portals.map(portalInteractable)],
-    [...toColliders(def.objects), ...portals.flatMap(portalPillarColliders)],
+    [
+      ...toInteractables(def.objects, def.id),
+      ...portals.map(portalInteractable),
+      ...npcs,
+    ],
+    [
+      ...toColliders(def.objects),
+      ...portals.flatMap(portalPillarColliders),
+      ...npcs.map((n) => n.collider),
+    ],
+    npcs,
   );
 };
 

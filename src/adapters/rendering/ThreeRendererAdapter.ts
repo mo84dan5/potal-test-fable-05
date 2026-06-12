@@ -19,6 +19,8 @@ interface WorldView {
   portalSurfaces: Map<string, THREE.Mesh>;
   /** ポータルID → 面マテリアル(テクスチャは毎フレーム割当) */
   portalMaterials: Map<string, THREE.ShaderMaterial>;
+  /** NPC ID → メッシュ(毎フレーム位置・向きを反映) */
+  npcMeshes: Map<string, THREE.Group>;
 }
 
 const PORTAL_VERTEX_SHADER = /* glsl */ `
@@ -98,6 +100,7 @@ export class ThreeRendererAdapter {
     const world = this.session.currentWorld;
     const view = this.viewOf(world.id);
     this.syncCamera(this.session.player);
+    this.syncNpcs();
 
     // 現在ワールドの各ポータルについて、接続先ワールドをレンダーターゲットへ描画する
     world.portals.forEach((portal, index) => {
@@ -133,6 +136,21 @@ export class ThreeRendererAdapter {
 
     this.renderer.setRenderTarget(null);
     this.renderer.render(view.scene, this.camera);
+  }
+
+  /** 全ワールドのNPCメッシュへドメインの位置・向きを反映(ポータル越しの姿も動く) */
+  private syncNpcs(): void {
+    for (const world of this.session.allWorlds) {
+      const view = this.views.get(world.id);
+      if (!view) continue;
+      for (const npc of world.npcs) {
+        const mesh = view.npcMeshes.get(npc.id);
+        if (!mesh) continue;
+        const feet = npc.feet;
+        mesh.position.set(feet.x, 0, feet.z);
+        mesh.rotation.y = npc.yaw;
+      }
+    }
   }
 
   private setPortalSurfacesVisible(view: WorldView, visible: boolean): void {
@@ -184,6 +202,15 @@ export class ThreeRendererAdapter {
     this.buildEnvironment(scene, world.id);
     if (def) this.buildObjects(scene, def.objects);
 
+    const npcMeshes = new Map<string, THREE.Group>();
+    for (const npc of world.npcs) {
+      const mesh = buildNpcMesh(def?.npc?.color ?? 0xe06a3c);
+      const feet = npc.feet;
+      mesh.position.set(feet.x, 0, feet.z);
+      scene.add(mesh);
+      npcMeshes.set(npc.id, mesh);
+    }
+
     const portalSurfaces = new Map<string, THREE.Mesh>();
     const portalMaterials = new Map<string, THREE.ShaderMaterial>();
     for (const portal of world.portals) {
@@ -202,7 +229,7 @@ export class ThreeRendererAdapter {
       portalSurfaces.set(portal.id, surface);
       portalMaterials.set(portal.id, material);
     }
-    return { scene, portalSurfaces, portalMaterials };
+    return { scene, portalSurfaces, portalMaterials, npcMeshes };
   }
 
   private buildEnvironment(scene: THREE.Scene, worldId: string): void {
@@ -404,6 +431,28 @@ export class ThreeRendererAdapter {
     scene.add(group);
     return surface;
   }
+}
+
+/** 案内人NPCの人型メッシュ(胴体+頭+帽子+足) */
+function buildNpcMesh(clothColor: number): THREE.Group {
+  const group = new THREE.Group();
+  const cloth = new THREE.MeshLambertMaterial({ color: clothColor });
+  const skin = new THREE.MeshLambertMaterial({ color: 0xf2c89b });
+
+  const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.5, 8), cloth);
+  legs.position.y = 0.25;
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.3, 0.75, 10), cloth);
+  body.position.y = 0.88;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 14, 12), skin);
+  head.position.y = 1.46;
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.34, 10), cloth);
+  hat.position.y = 1.74;
+  // つば(進行方向 -Z 側へ少し出す)
+  const brim = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.04, 0.18), cloth);
+  brim.position.set(0, 1.58, -0.2);
+
+  group.add(legs, body, head, hat, brim);
+  return group;
 }
 
 // --- 地面のプロシージャル模様(外部アセット不要・シード付きで決定的) ---
