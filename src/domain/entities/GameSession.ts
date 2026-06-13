@@ -1,4 +1,5 @@
 import { DialogueSession } from './DialogueSession';
+import { Interactable } from './Interactable';
 import { Player } from './Player';
 import { World } from './World';
 
@@ -6,6 +7,8 @@ import { World } from './World';
 export class GameSession {
   /** 表示中のメッセージウィンドウ。null なら非表示 */
   public dialogue: DialogueSession | null = null;
+  /** 会話中の相手(NPCなら徘徊を停止する)。ウィンドウを閉じたら null */
+  public dialogueSpeaker: Interactable | null = null;
 
   private readonly worlds: Map<string, World>;
 

@@ -83,21 +83,24 @@ const buildWorld = (def: WorldDef): World => {
         p.targetPortalId,
       ),
   );
-  const npcs = def.npc
-    ? [
-        new Npc(
-          `${def.id}-npc`,
-          def.npc.name,
-          new Vec3(def.npc.x, 0, def.npc.z),
-          NPC_ANCHOR_Y,
-          def.npc.bubble,
-          def.npc.dialogue,
-          new Vec3(def.npc.x, 0, def.npc.z),
-          def.npc.wanderRadius,
-          def.id.charCodeAt(0) * 7919, // ワールドごとに異なる決定的シード
-        ),
-      ]
-    : [];
+  const npcs = def.npcs.map((spec, i) => {
+    const npc = new Npc(
+      `${def.id}-npc-${i}`,
+      spec.name,
+      new Vec3(spec.x, 0, spec.z),
+      NPC_ANCHOR_Y,
+      spec.bubble,
+      spec.dialogue,
+      new Vec3(spec.x, 0, spec.z),
+      spec.wanderRadius,
+      def.id.charCodeAt(0) * 7919 + i * 104729, // ワールド・個体ごとに異なる決定的シード
+    );
+    if (spec.wanderRadius <= 0) {
+      // 静止NPCは広場の中心(原点)を向いて立つ
+      npc.yaw = Math.atan2(spec.x, spec.z);
+    }
+    return npc;
+  });
   return new World(
     def.id,
     def.name,

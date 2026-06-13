@@ -203,13 +203,14 @@ export class ThreeRendererAdapter {
     if (def) this.buildObjects(scene, def.objects);
 
     const npcMeshes = new Map<string, THREE.Group>();
-    for (const npc of world.npcs) {
-      const mesh = buildNpcMesh(def?.npc?.color ?? 0xe06a3c);
+    world.npcs.forEach((npc, i) => {
+      const mesh = buildNpcMesh(def?.npcs[i]?.color ?? 0xe06a3c);
       const feet = npc.feet;
       mesh.position.set(feet.x, 0, feet.z);
+      mesh.rotation.y = npc.yaw;
       scene.add(mesh);
       npcMeshes.set(npc.id, mesh);
-    }
+    });
 
     const portalSurfaces = new Map<string, THREE.Mesh>();
     const portalMaterials = new Map<string, THREE.ShaderMaterial>();

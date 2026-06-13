@@ -10,6 +10,7 @@ const MAX_PAUSE = 3.5; // [s]
 export class NpcWanderService {
   tick(npc: Npc, dt: number, colliders: readonly Collider[]): void {
     if (dt <= 0) return;
+    if (npc.wanderRadius <= 0) return; // 静止NPC(その場に立っている)
 
     if (npc.pauseTimer > 0) {
       npc.pauseTimer = Math.max(0, npc.pauseTimer - dt);

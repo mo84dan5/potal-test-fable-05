@@ -19,6 +19,7 @@ export class TapInteractUseCase {
     if (this.session.dialogue) {
       if (!this.session.dialogue.advance()) {
         this.session.dialogue = null;
+        this.session.dialogueSpeaker = null;
       }
       return;
     }
@@ -30,6 +31,7 @@ export class TapInteractUseCase {
     );
     if (target) {
       this.session.dialogue = new DialogueSession(target.dialogue);
+      this.session.dialogueSpeaker = target;
     }
   }
 }

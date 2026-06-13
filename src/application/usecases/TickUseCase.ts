@@ -27,9 +27,11 @@ export class TickUseCase {
     // 押し出し後の位置でポータル判定する(押し戻されたフレームの誤通過を防ぐ)
     this.collision.resolve(player, this.session.currentWorld.colliders);
 
-    // 全ワールドのNPCを徘徊させる(ポータル越しに見えるNPCも動く)
+    // 全ワールドのNPCを徘徊させる(ポータル越しに見えるNPCも動く)。
+    // 話しかけられている相手は立ち止まる
     for (const world of this.session.allWorlds) {
       for (const npc of world.npcs) {
+        if (npc === this.session.dialogueSpeaker) continue;
         this.npcWander.tick(npc, dt, world.colliders);
       }
     }

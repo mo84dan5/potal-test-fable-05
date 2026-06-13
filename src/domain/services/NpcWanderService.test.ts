@@ -62,6 +62,20 @@ describe('NpcWanderService', () => {
     expect(npc.feet.x).toBeCloseTo(0.55); // 押し出されず普通に歩く
   });
 
+  it('wanderRadius=0 の静止NPCは動かない', () => {
+    const npc = new Npc(
+      'guard', '門番',
+      new Vec3(3, 0, -4.8), 2.0,
+      '門番だよ', ['わたしは番人。'],
+      new Vec3(3, 0, -4.8), 0, 7,
+    );
+    npc.yaw = 1.2;
+    for (let i = 0; i < 100; i++) service.tick(npc, 0.1, []);
+    expect(npc.feet.x).toBeCloseTo(3);
+    expect(npc.feet.z).toBeCloseTo(-4.8);
+    expect(npc.yaw).toBeCloseTo(1.2); // 向きも変わらない
+  });
+
   it('長時間歩いても徘徊円から大きく外れない(コライダー追従も確認)', () => {
     const npc = buildNpc();
     for (let i = 0; i < 3000; i++) service.tick(npc, 0.1, []);

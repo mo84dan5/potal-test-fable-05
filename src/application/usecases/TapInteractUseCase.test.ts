@@ -73,4 +73,16 @@ describe('TapInteractUseCase', () => {
     usecase.execute(); // 閉じる
     expect(session.dialogue).toBeNull();
   });
+
+  it('会話を開くと相手(dialogueSpeaker)が記録され、閉じると解除される', () => {
+    const rock = new Interactable('r', '石', new Vec3(2, 1, 0), null, ['これは石だ。']);
+    const session = buildSession([rock]);
+    const usecase = buildUseCase(session);
+
+    usecase.execute(); // 開く
+    expect(session.dialogueSpeaker).toBe(rock);
+    usecase.execute(); // 1行のみ → 閉じる
+    expect(session.dialogue).toBeNull();
+    expect(session.dialogueSpeaker).toBeNull();
+  });
 });

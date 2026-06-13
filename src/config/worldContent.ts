@@ -57,7 +57,7 @@ export interface WorldDef {
   name: string;
   objects: WorldObjectSpec[];
   portals: PortalSpec[];
-  npc?: NpcSpec;
+  npcs: NpcSpec[];
 }
 
 const TREE_BUBBLE = 'これは木です';
@@ -106,15 +106,26 @@ export const WORLD_DEFS: WorldDef[] = [
       { id: 'day-night', x: 0, z: -6, yaw: 0, targetWorldId: 'night', targetPortalId: 'night-day', frameColor: 0x7df9ff },
       { id: 'day-snow', x: 12, z: 2, yaw: -Math.PI / 2, targetWorldId: 'snow', targetPortalId: 'snow-day', frameColor: 0x9adcff },
     ],
-    npc: {
-      x: 4, z: -1, name: '案内人', color: 0xe06a3c, wanderRadius: 5,
-      bubble: 'こんにちは!',
-      dialogue: [
-        'やあ、旅人さん。ここは「昼の世界」。いつもおだやかな光に包まれているんだ。',
-        '木や石にも近づいてみるといい。何か教えてくれるかもしれないよ。',
-        '光る門はポータル。正面の門は「夜の世界」へ、右手の門は「雪の世界」へつながっている。',
-      ],
-    },
+    npcs: [
+      {
+        x: 4, z: -1, name: '案内人', color: 0xe06a3c, wanderRadius: 5,
+        bubble: 'こんにちは!',
+        dialogue: [
+          'やあ、旅人さん。ここは「昼の世界」。いつもおだやかな光に包まれているんだ。',
+          '木や石にも近づいてみるといい。何か教えてくれるかもしれないよ。',
+          '光る門はポータル。正面の門は「夜の世界」へ、右手の門は「雪の世界」へつながっている。',
+        ],
+      },
+      {
+        x: 3, z: -4.8, name: '門番', color: 0x4a8a4a, wanderRadius: 0,
+        bubble: '門番だよ',
+        dialogue: [
+          'わたしはこの門の番人。ずっとここに立っているのさ。',
+          '門の向こうは「夜の世界」。行き来は自由だから安心して。',
+          '困ったら、そのへんを歩いている案内人に聞くといい。',
+        ],
+      },
+    ],
   },
   {
     id: 'night',
@@ -131,15 +142,26 @@ export const WORLD_DEFS: WorldDef[] = [
       { id: 'night-day', x: 0, z: -6, yaw: 0, targetWorldId: 'day', targetPortalId: 'day-night', frameColor: 0xffc04d },
       { id: 'night-ruins', x: -12, z: 2, yaw: Math.PI / 2, targetWorldId: 'ruins', targetPortalId: 'ruins-night', frameColor: 0xffa477 },
     ],
-    npc: {
-      x: -4, z: -1, name: '案内人', color: 0x7d5fd3, wanderRadius: 5,
-      bubble: 'こんばんは!',
-      dialogue: [
-        'ようこそ「夜の世界」へ。ここでは星とクリスタルが道を照らしてくれる。',
-        'クリスタルに触れてみるといい。ほんのり温かいんだ。',
-        '正面の門は「昼の世界」へ。左手の門の先は「黄昏の遺跡」、不思議な場所だよ。',
-      ],
-    },
+    npcs: [
+      {
+        x: -4, z: -1, name: '案内人', color: 0x7d5fd3, wanderRadius: 5,
+        bubble: 'こんばんは!',
+        dialogue: [
+          'ようこそ「夜の世界」へ。ここでは星とクリスタルが道を照らしてくれる。',
+          'クリスタルに触れてみるといい。ほんのり温かいんだ。',
+          '正面の門は「昼の世界」へ。左手の門の先は「黄昏の遺跡」、不思議な場所だよ。',
+        ],
+      },
+      {
+        x: 2.8, z: -4.6, name: '星読み', color: 0x35648c, wanderRadius: 0,
+        bubble: '星がきれいだ…',
+        dialogue: [
+          'わたしは星読み。ここから動かず、毎晩星を数えているんだ。',
+          'この空の星は四百ほど。ぜんぶ名前をつけたよ。',
+          '月のそばに立つと、クリスタルが少し明るくなる…気がする。',
+        ],
+      },
+    ],
   },
   {
     id: 'snow',
@@ -154,15 +176,26 @@ export const WORLD_DEFS: WorldDef[] = [
     portals: [
       { id: 'snow-day', x: 0, z: -6, yaw: 0, targetWorldId: 'day', targetPortalId: 'day-snow', frameColor: 0xffc04d },
     ],
-    npc: {
-      x: 4, z: 3, name: '案内人', color: 0x3f7fbf, wanderRadius: 5,
-      bubble: 'さむいねえ!',
-      dialogue: [
-        'ここは「雪の世界」。一年中、静かな雪に覆われているんだ。',
-        '氷柱の奥に何かが見える、なんて噂もある。確かめてみるかい?',
-        '門をくぐれば「昼の世界」へ戻れるよ。',
-      ],
-    },
+    npcs: [
+      {
+        x: 4, z: 3, name: '案内人', color: 0x3f7fbf, wanderRadius: 5,
+        bubble: 'さむいねえ!',
+        dialogue: [
+          'ここは「雪の世界」。一年中、静かな雪に覆われているんだ。',
+          '氷柱の奥に何かが見える、なんて噂もある。確かめてみるかい?',
+          '門をくぐれば「昼の世界」へ戻れるよ。',
+        ],
+      },
+      {
+        x: -3, z: -4, name: '旅商人', color: 0x8c5a86, wanderRadius: 0,
+        bubble: 'いらっしゃい',
+        dialogue: [
+          '旅の商人さ。寒くて足が凍りついちまってね、ここから動けないんだ。',
+          '売り物?氷柱のかけらだよ。とけないのが自慢…のはずだった。',
+          '昼の世界へ帰るなら、あの門をくぐるといい。',
+        ],
+      },
+    ],
   },
   {
     id: 'ruins',
@@ -178,15 +211,26 @@ export const WORLD_DEFS: WorldDef[] = [
     portals: [
       { id: 'ruins-night', x: 0, z: -6, yaw: 0, targetWorldId: 'night', targetPortalId: 'night-ruins', frameColor: 0x7df9ff },
     ],
-    npc: {
-      x: -5, z: 3, name: '案内人', color: 0xb3863e, wanderRadius: 5,
-      bubble: 'ようこそ!',
-      dialogue: [
-        'ここは「黄昏の遺跡」。沈まない夕日が照らす、古い都の跡さ。',
-        '柱の文字はもう誰にも読めない。遠い昔の言葉なんだ。',
-        '門の先は「夜の世界」。気をつけて行くんだよ。',
-      ],
-    },
+    npcs: [
+      {
+        x: -5, z: 3, name: '案内人', color: 0xb3863e, wanderRadius: 5,
+        bubble: 'ようこそ!',
+        dialogue: [
+          'ここは「黄昏の遺跡」。沈まない夕日が照らす、古い都の跡さ。',
+          '柱の文字はもう誰にも読めない。遠い昔の言葉なんだ。',
+          '門の先は「夜の世界」。気をつけて行くんだよ。',
+        ],
+      },
+      {
+        x: 3, z: -4.4, name: '学者', color: 0x6d6d8a, wanderRadius: 0,
+        bubble: 'ふむふむ…',
+        dialogue: [
+          'わたしは遺跡を調べている学者だ。この場所からが一番よく見える。',
+          '柱の配置には規則がある。星の並びと同じなんだよ。',
+          'この夕日は何百年も沈んでいない。不思議だろう?',
+        ],
+      },
+    ],
   },
 ];
 

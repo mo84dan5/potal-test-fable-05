@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GameSession } from '../../domain/entities/GameSession';
+import { Npc } from '../../domain/entities/Npc';
 import { Player } from '../../domain/entities/Player';
 import { Portal } from '../../domain/entities/Portal';
 import { World } from '../../domain/entities/World';
@@ -70,6 +71,36 @@ describe('TickUseCase', () => {
 
     expect(result.traversed).toBe(true);
     expect(session.currentWorldId).toBe('snow'); // p1(夜)ではなく p2 の接続先
+  });
+
+  it('話しかけられているNPCは徘徊を停止し、会話が終わると再開する', () => {
+    const npc = new Npc(
+      'guide', '案内人',
+      new Vec3(5, 0, 5), 2.0,
+      'こんにちは!', ['ここは昼の世界。'],
+      new Vec3(5, 0, 5), 5, 42,
+    );
+    npc.targetX = 10; // 遠くの目的地へ歩いている最中
+    npc.targetZ = 5;
+    const a = new World(
+      'day', '昼',
+      [new Portal('day-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'night', 'night-p1')],
+      [npc], [], [npc],
+    );
+    const b = new World('night', '夜', [new Portal('night-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'day', 'day-p1')]);
+    const player = new Player(new Vec3(0, 0, 4), Vec3.ZERO, 0, 0);
+    const session = new GameSession([a, b], 'day', player);
+    const tick = buildTick(session);
+
+    // 会話中: 動かない
+    session.dialogueSpeaker = npc;
+    tick.execute(0.5);
+    expect(npc.feet.x).toBeCloseTo(5);
+
+    // 会話終了: 歩き出す
+    session.dialogueSpeaker = null;
+    tick.execute(0.5);
+    expect(npc.feet.x).toBeGreaterThan(5);
   });
 
   it('コライダーのあるオブジェクトはすり抜けられない(押し出し+壁ずり)', () => {
