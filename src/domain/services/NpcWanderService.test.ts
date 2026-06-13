@@ -76,12 +76,28 @@ describe('NpcWanderService', () => {
     expect(npc.yaw).toBeCloseTo(1.2); // 向きも変わらない
   });
 
-  it('長時間歩いても徘徊円から大きく外れない(コライダー追従も確認)', () => {
+  it('長時間歩いても徘徊円の外には一切出ない(コライダー追従も確認)', () => {
     const npc = buildNpc();
-    for (let i = 0; i < 3000; i++) service.tick(npc, 0.1, []);
-    const d = Math.hypot(npc.feet.x, npc.feet.z);
-    expect(d).toBeLessThanOrEqual(5.3);
+    for (let i = 0; i < 3000; i++) {
+      service.tick(npc, 0.1, []);
+      const d = Math.hypot(npc.feet.x, npc.feet.z);
+      expect(d).toBeLessThanOrEqual(5 + 1e-6); // 毎フレーム、半径5の円内を保証
+    }
     expect(npc.collider.position.x).toBeCloseTo(npc.feet.x);
     expect(npc.collider.position.z).toBeCloseTo(npc.feet.z);
+  });
+
+  it('障害物に円の外へ押し出されても徘徊円の境界へ引き戻される(範囲優先)', () => {
+    const npc = buildNpc(); // 中心(0,0) 半径5
+    // 円の縁(x=4.9)から外向きの目的地へ歩かせ、背後の障害物が円外(x=5.55)へ押し出す状況を作る
+    npc.moveTo(4.9, 0);
+    npc.targetX = 6;
+    npc.targetZ = 0;
+    const wall = { position: new Vec3(4.6, 0, 0), radius: 0.5 }; // 押し出し先 = 4.6+0.95 = 5.55(円外)
+    service.tick(npc, 0.1, [wall]);
+
+    const d = Math.hypot(npc.feet.x, npc.feet.z);
+    expect(d).toBeLessThanOrEqual(5 + 1e-6); // 円外に出ない
+    expect(npc.feet.x).toBeCloseTo(5); // 境界(半径5)へクランプ
   });
 });

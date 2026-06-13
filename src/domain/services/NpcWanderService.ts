@@ -50,6 +50,16 @@ export class NpcWanderService {
       nz = c.position.z + pz * minDist;
     }
 
+    // 行動範囲のハード制限: 押し出し等で徘徊円の外に出されても境界へ引き戻す
+    const cx = nx - npc.wanderCenter.x;
+    const cz = nz - npc.wanderCenter.z;
+    const fromCenter = Math.hypot(cx, cz);
+    if (fromCenter > npc.wanderRadius) {
+      const k = npc.wanderRadius / fromCenter;
+      nx = npc.wanderCenter.x + cx * k;
+      nz = npc.wanderCenter.z + cz * k;
+    }
+
     // 進行方向を向く(forward = (-sin yaw, -cos yaw) の規約)
     npc.yaw = Math.atan2(-(dx / dist), -(dz / dist));
     npc.moveTo(nx, nz);
