@@ -1,4 +1,6 @@
 import { GameSession } from '../../domain/entities/GameSession';
+import { Npc } from '../../domain/entities/Npc';
+import { Vec3 } from '../../domain/values/Vec3';
 import { CollisionService } from '../../domain/services/CollisionService';
 import { MovementService } from '../../domain/services/MovementService';
 import { NpcWanderService } from '../../domain/services/NpcWanderService';
@@ -17,6 +19,8 @@ export class TickUseCase {
     private readonly traversal: PortalTraversalService,
     private readonly collision: CollisionService = new CollisionService(),
     private readonly npcWander: NpcWanderService = new NpcWanderService(),
+    /** 会話中にこれ以上離れるとウィンドウを自動で閉じる距離 [m] */
+    private readonly dialogueBreakRange = 6.5,
   ) {}
 
   execute(dt: number): TickResult {
@@ -36,6 +40,38 @@ export class TickUseCase {
       }
     }
 
+    this.maintainDialogue();
+
+    return this.checkPortals(before);
+  }
+
+  /**
+   * 会話の維持処理:
+   * 1. 相手がNPCなら常にプレイヤーの方を向く
+   * 2. 相手から一定距離を超えて離れたらウィンドウを自動で閉じる
+   */
+  private maintainDialogue(): void {
+    const speaker = this.session.dialogueSpeaker;
+    if (!this.session.dialogue || !speaker) return;
+
+    const player = this.session.player;
+    const dx = player.position.x - speaker.position.x;
+    const dz = player.position.z - speaker.position.z;
+
+    if (Math.hypot(dx, dz) > this.dialogueBreakRange) {
+      this.session.dialogue = null;
+      this.session.dialogueSpeaker = null;
+      return;
+    }
+
+    if (speaker instanceof Npc) {
+      // forward = (-sin yaw, -cos yaw) がプレイヤー方向を向く yaw
+      speaker.yaw = Math.atan2(-dx, -dz);
+    }
+  }
+
+  private checkPortals(before: Vec3): TickResult {
+    const player = this.session.player;
     for (const portal of this.session.currentWorld.portals) {
       if (!this.traversal.hasCrossed(portal, before, player.position)) continue;
       const dest = this.session.getWorld(portal.targetWorldId);

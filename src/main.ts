@@ -5,12 +5,15 @@ import { Player } from './domain/entities/Player';
 import { Portal } from './domain/entities/Portal';
 import { World } from './domain/entities/World';
 import { Vec3 } from './domain/values/Vec3';
+import { CollisionService } from './domain/services/CollisionService';
 import { InteractionService } from './domain/services/InteractionService';
 import { MovementService } from './domain/services/MovementService';
+import { NpcWanderService } from './domain/services/NpcWanderService';
 import { PortalTraversalService } from './domain/services/PortalTraversalService';
 import { Collider } from './domain/values/Collider';
 import {
   BUBBLE_RANGE,
+  DIALOGUE_BREAK_RANGE,
   INTERACT_RANGE,
   PORTAL_BUBBLE_ANCHOR_Y,
   PORTAL_HALF_WIDTH,
@@ -132,7 +135,14 @@ const applyLook = new ApplyLookUseCase(session);
 const stopMovement = new StopMovementUseCase(session, movement);
 const tapInteract = new TapInteractUseCase(session, interaction, INTERACT_RANGE);
 const nearbyBubble = new NearbyBubbleUseCase(session, interaction, BUBBLE_RANGE);
-const tick = new TickUseCase(session, movement, traversal);
+const tick = new TickUseCase(
+  session,
+  movement,
+  traversal,
+  new CollisionService(),
+  new NpcWanderService(),
+  DIALOGUE_BREAK_RANGE,
+);
 
 // --- アダプタ(描画・入力) ---
 const container = document.getElementById('app');

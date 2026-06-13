@@ -7,6 +7,7 @@ import { Portal } from '../../domain/entities/Portal';
 import { World } from '../../domain/entities/World';
 import { Vec3 } from '../../domain/values/Vec3';
 import { InteractionService } from '../../domain/services/InteractionService';
+import { INTERACT_RANGE } from '../../config/worldContent';
 import { TapInteractUseCase } from './TapInteractUseCase';
 
 const ROCK_LINES = ['これは石だ。', 'ごつごつしている。', '何も起こらない。'];
@@ -72,6 +73,20 @@ describe('TapInteractUseCase', () => {
     expect(session.dialogue!.currentLine).toBe('何も起こらない。');
     usecase.execute(); // 閉じる
     expect(session.dialogue).toBeNull();
+  });
+
+  it('拡大された会話距離(5.25m=旧3.5の1.5倍)では5m先でも開き、5.5m先では開かない', () => {
+    expect(INTERACT_RANGE).toBeCloseTo(3.5 * 1.5);
+
+    const near = new Interactable('n', '石', new Vec3(5, 1, 0), null, ['これは石だ。']);
+    const sessionNear = buildSession([near]);
+    new TapInteractUseCase(sessionNear, new InteractionService(), INTERACT_RANGE).execute();
+    expect(sessionNear.dialogue).not.toBeNull();
+
+    const far = new Interactable('f', '石', new Vec3(5.5, 1, 0), null, ['これは石だ。']);
+    const sessionFar = buildSession([far]);
+    new TapInteractUseCase(sessionFar, new InteractionService(), INTERACT_RANGE).execute();
+    expect(sessionFar.dialogue).toBeNull();
   });
 
   it('会話を開くと相手(dialogueSpeaker)が記録され、閉じると解除される', () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DialogueSession } from '../../domain/entities/DialogueSession';
 import { GameSession } from '../../domain/entities/GameSession';
 import { Npc } from '../../domain/entities/Npc';
 import { Player } from '../../domain/entities/Player';
@@ -101,6 +102,65 @@ describe('TickUseCase', () => {
     session.dialogueSpeaker = null;
     tick.execute(0.5);
     expect(npc.feet.x).toBeGreaterThan(5);
+  });
+
+  it('会話中のNPCは常にプレイヤーの方を向く(移動すると追従)', () => {
+    const npc = new Npc(
+      'guide', '案内人',
+      new Vec3(5, 0, 5), 2.0,
+      'こんにちは!', ['ここは昼の世界。'],
+      new Vec3(5, 0, 5), 5, 42,
+    );
+    const a = new World(
+      'day', '昼',
+      [new Portal('day-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'night', 'night-p1')],
+      [npc], [], [npc],
+    );
+    const b = new World('night', '夜', [new Portal('night-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'day', 'day-p1')]);
+    const player = new Player(new Vec3(5, 0, 8), Vec3.ZERO, 0, 0);
+    const session = new GameSession([a, b], 'day', player);
+    session.dialogue = new DialogueSession(npc.dialogue);
+    session.dialogueSpeaker = npc;
+    const tick = buildTick(session);
+
+    // プレイヤーは +Z 側 → NPCの forward が (0,0,+1) になる yaw=π
+    tick.execute(0.016);
+    expect(Math.abs(npc.yaw)).toBeCloseTo(Math.PI);
+
+    // プレイヤーが +X 側へ回り込むと向きが追従する(forward=(+1,0,0) → yaw=-π/2)
+    player.position = new Vec3(8, 0, 5);
+    tick.execute(0.016);
+    expect(npc.yaw).toBeCloseTo(-Math.PI / 2);
+  });
+
+  it('会話中に一定以上離れるとウィンドウが自動で閉じる', () => {
+    const npc = new Npc(
+      'guide', '案内人',
+      new Vec3(0, 0, 0), 2.0,
+      'こんにちは!', ['ここは昼の世界。'],
+      new Vec3(0, 0, 0), 5, 42,
+    );
+    const a = new World(
+      'day', '昼',
+      [new Portal('day-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'night', 'night-p1')],
+      [npc], [], [npc],
+    );
+    const b = new World('night', '夜', [new Portal('night-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'day', 'day-p1')]);
+    const player = new Player(new Vec3(0, 0, 3), Vec3.ZERO, 0, 0);
+    const session = new GameSession([a, b], 'day', player);
+    session.dialogue = new DialogueSession(npc.dialogue);
+    session.dialogueSpeaker = npc;
+    const tick = buildTick(session); // 終了距離はデフォルト 6.5m
+
+    // 範囲内: 開いたまま
+    tick.execute(0.016);
+    expect(session.dialogue).not.toBeNull();
+
+    // 6.5m 超: 自動で閉じて speaker も解除、NPCは徘徊を再開できる
+    player.position = new Vec3(0, 0, 7);
+    tick.execute(0.016);
+    expect(session.dialogue).toBeNull();
+    expect(session.dialogueSpeaker).toBeNull();
   });
 
   it('コライダーのあるオブジェクトはすり抜けられない(押し出し+壁ずり)', () => {

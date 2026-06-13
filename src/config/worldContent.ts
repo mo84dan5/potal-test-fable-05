@@ -238,7 +238,10 @@ export const WORLD_DEFS: WorldDef[] = [
 export const PORTAL_BUBBLE_ANCHOR_Y = 3.6;
 
 export const BUBBLE_RANGE = 5;
-export const INTERACT_RANGE = 3.5;
+/** タップで会話を開ける距離 [m](旧3.5の1.5倍) */
+export const INTERACT_RANGE = 5.25;
+/** 会話中にこれ以上離れるとウィンドウが自動で閉じる距離 [m] */
+export const DIALOGUE_BREAK_RANGE = 6.5;
 
 /** ポータル枠の柱の衝突半径 [m](面はコライダーなしで通過可能) */
 export const PORTAL_PILLAR_RADIUS = 0.25;
