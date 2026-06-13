@@ -15,6 +15,11 @@ import { HeightField, HillyTerrain } from './domain/values/Terrain';
 import {
   BUBBLE_RANGE,
   DIALOGUE_BREAK_RANGE,
+  HOUSE,
+  HOUSE_TABLE_BUBBLE,
+  HOUSE_TV_DIALOGUE,
+  HOUSE_WALL_COLLIDER_RADIUS,
+  houseWallColliderSpots,
   INTERACT_FRONT_DOT,
   INTERACT_RANGE,
   PORTAL_BUBBLE_ANCHOR_Y,
@@ -82,11 +87,49 @@ const FLAT_PORTAL_RADIUS = 5; // ポータル周辺の平坦化半径 [m]
 const FLAT_SPAWN_RADIUS = 4; // スポーン(原点)の平坦化半径 [m]
 
 // 地形: ワールドごとの振幅+ポータル・スポーン周辺の平坦化
+const FLAT_HOUSE_RADIUS = 7; // 家の周辺の平坦化半径 [m]
+
 const buildTerrain = (def: WorldDef): HeightField =>
   new HillyTerrain(def.terrainAmplitude, [
     ...def.portals.map((p) => ({ x: p.x, z: p.z, radius: FLAT_PORTAL_RADIUS })),
     { x: 0, z: 0, radius: FLAT_SPAWN_RADIUS },
+    ...(def.house ? [{ x: def.house.x, z: def.house.z, radius: FLAT_HOUSE_RADIUS }] : []),
   ]);
+
+// 家: テレビ・テーブルのインタラクタブルと、壁・家具のコライダー
+const houseInteractables = (def: WorldDef): Interactable[] => {
+  if (!def.house) return [];
+  const { x: hx, z: hz } = def.house;
+  return [
+    new Interactable(
+      `${def.id}-house-tv`,
+      'テレビ',
+      new Vec3(hx + HOUSE.tv.x, HOUSE.tv.anchorY, hz + HOUSE.tv.z),
+      null,
+      HOUSE_TV_DIALOGUE,
+    ),
+    new Interactable(
+      `${def.id}-house-table`,
+      'テーブル',
+      new Vec3(hx + HOUSE.table.x, HOUSE.table.anchorY, hz + HOUSE.table.z),
+      HOUSE_TABLE_BUBBLE,
+      [],
+    ),
+  ];
+};
+
+const houseColliders = (def: WorldDef): Collider[] => {
+  if (!def.house) return [];
+  const { x: hx, z: hz } = def.house;
+  return [
+    ...houseWallColliderSpots(hx, hz).map((s) => ({
+      position: new Vec3(s.x, 0, s.z),
+      radius: HOUSE_WALL_COLLIDER_RADIUS,
+    })),
+    { position: new Vec3(hx + HOUSE.tv.x, 0, hz + HOUSE.tv.z), radius: 0.6 },
+    { position: new Vec3(hx + HOUSE.table.x, 0, hz + HOUSE.table.z), radius: 0.85 },
+  ];
+};
 
 const buildWorld = (def: WorldDef): World => {
   const terrain = buildTerrain(def);
@@ -115,8 +158,8 @@ const buildWorld = (def: WorldDef): World => {
       def.id.charCodeAt(0) * 7919 + i * 104729, // ワールド・個体ごとに異なる決定的シード
     );
     if (spec.wanderRadius <= 0) {
-      // 静止NPCは広場の中心(原点)を向いて立つ
-      npc.yaw = Math.atan2(spec.x, spec.z);
+      // 静止NPCは指定の向き、なければ広場の中心(原点)を向いて立つ
+      npc.yaw = spec.yaw ?? Math.atan2(spec.x, spec.z);
     }
     npc.moveTo(spec.x, spec.z, terrain.heightAt(spec.x, spec.z)); // 初期位置を地形へスナップ
     return npc;
@@ -127,11 +170,13 @@ const buildWorld = (def: WorldDef): World => {
     portals,
     [
       ...toInteractables(def.objects, def.id, terrain),
+      ...houseInteractables(def),
       ...portals.map(portalInteractable),
       ...npcs,
     ],
     [
       ...toColliders(def.objects),
+      ...houseColliders(def),
       ...portals.flatMap(portalPillarColliders),
       ...npcs.map((n) => n.collider),
     ],

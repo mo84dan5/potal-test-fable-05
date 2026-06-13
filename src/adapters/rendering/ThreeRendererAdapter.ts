@@ -5,7 +5,7 @@ import { Portal } from '../../domain/entities/Portal';
 import { World } from '../../domain/entities/World';
 import { HeightField } from '../../domain/values/Terrain';
 import { Vec3 } from '../../domain/values/Vec3';
-import { WORLD_DEFS, WorldObjectSpec } from '../../config/worldContent';
+import { HOUSE, HouseSpec, WORLD_DEFS, WorldObjectSpec } from '../../config/worldContent';
 
 export interface ScreenPoint {
   x: number;
@@ -202,6 +202,7 @@ export class ThreeRendererAdapter {
     const def = WORLD_DEFS.find((d) => d.id === world.id);
     this.buildEnvironment(scene, world.id, world.terrain);
     if (def) this.buildObjects(scene, def.objects, world.terrain);
+    if (def?.house) this.buildHouse(scene, def.house, world.terrain);
 
     const npcMeshes = new Map<string, THREE.Group>();
     world.npcs.forEach((npc, i) => {
@@ -419,6 +420,108 @@ export class ThreeRendererAdapter {
     }
   }
 
+  /** 家(床・壁・窓・屋根)と家具(テレビ・テーブル)を構築する。ドアは +Z 向きの開口 */
+  private buildHouse(
+    scene: THREE.Scene,
+    house: HouseSpec,
+    terrain: HeightField,
+  ): void {
+    const group = new THREE.Group();
+    group.position.set(house.x, terrain.heightAt(house.x, house.z), house.z);
+
+    const wallMat = new THREE.MeshLambertMaterial({ color: 0xefe3c8 });
+    const trimMat = new THREE.MeshLambertMaterial({ color: 0x7a5230 });
+    const floorMat = new THREE.MeshLambertMaterial({ color: 0xb08968 });
+    const w = HOUSE.width / 2;
+    const d = HOUSE.depth / 2;
+    const h = HOUSE.wallHeight;
+    const t = 0.15; // 壁の厚さ
+    const box = (
+      sx: number, sy: number, sz: number,
+      x: number, y: number, z: number,
+      mat: THREE.Material = wallMat,
+    ): void => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
+      m.position.set(x, y, z);
+      group.add(m);
+    };
+
+    // 床と背面壁
+    box(HOUSE.width, 0.12, HOUSE.depth, 0, 0.06, 0, floorMat);
+    box(HOUSE.width, h, t, 0, h / 2, -d);
+
+    // 側面壁(中央に窓開口: 幅1.2 × 高さ1.0、腰高1.0)
+    for (const sx of [-w, w]) {
+      box(t, 1.0, HOUSE.depth, sx, 0.5, 0); // 腰壁
+      box(t, h - 2.0, HOUSE.depth, sx, (2.0 + h) / 2, 0); // 窓上
+      box(t, 1.0, d - 0.6, sx, 1.5, (0.6 + d) / 2); // 窓の前後
+      box(t, 1.0, d - 0.6, sx, 1.5, -(0.6 + d) / 2);
+      // 窓ガラス(半透明)と木枠
+      const glass = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.2, 1.0),
+        new THREE.MeshBasicMaterial({
+          color: 0xbfe8ff,
+          transparent: true,
+          opacity: 0.3,
+          side: THREE.DoubleSide,
+        }),
+      );
+      glass.rotation.y = Math.PI / 2;
+      glass.position.set(sx, 1.5, 0);
+      group.add(glass);
+      box(t + 0.06, 0.08, 1.32, sx, 1.0, 0, trimMat);
+      box(t + 0.06, 0.08, 1.32, sx, 2.0, 0, trimMat);
+      box(t + 0.06, 1.04, 0.08, sx, 1.5, -0.62, trimMat);
+      box(t + 0.06, 1.04, 0.08, sx, 1.5, 0.62, trimMat);
+      box(t + 0.06, 0.08, 0.08, sx, 1.5, 0, trimMat); // 中桟
+    }
+
+    // 前面壁(中央にドア開口: 幅1.4 × 高さ2.2)+ドア枠
+    const dw = HOUSE.doorWidth / 2;
+    box(w - dw, h, t, -(dw + (w - dw) / 2), h / 2, d);
+    box(w - dw, h, t, dw + (w - dw) / 2, h / 2, d);
+    box(HOUSE.doorWidth, h - 2.2, t, 0, (2.2 + h) / 2, d); // まぐさ
+    box(0.1, 2.2, t + 0.06, -dw, 1.1, d, trimMat);
+    box(0.1, 2.2, t + 0.06, dw, 1.1, d, trimMat);
+    box(HOUSE.doorWidth + 0.2, 0.1, t + 0.06, 0, 2.25, d, trimMat);
+
+    // 屋根(四角錐)
+    const roof = new THREE.Mesh(
+      new THREE.ConeGeometry(Math.hypot(w, d) + 0.5, 1.7, 4),
+      new THREE.MeshLambertMaterial({ color: 0x9b4a3c }),
+    );
+    roof.rotation.y = Math.PI / 4;
+    roof.position.y = h + 0.85;
+    group.add(roof);
+
+    // テーブル(円卓)
+    const woodMat = new THREE.MeshLambertMaterial({ color: 0x8a6240 });
+    const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.07, 20), woodMat);
+    tableTop.position.set(HOUSE.table.x, 0.74, HOUSE.table.z);
+    const tableLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.7, 10), woodMat);
+    tableLeg.position.set(HOUSE.table.x, 0.36, HOUSE.table.z);
+    const tableBase = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.06, 14), woodMat);
+    tableBase.position.set(HOUSE.table.x, 0.03 + 0.12, HOUSE.table.z);
+    group.add(tableTop, tableLeg, tableBase);
+
+    // テレビ(部屋側 +Z を向く。画面はカラーバーが光る)
+    const tvDark = new THREE.MeshLambertMaterial({ color: 0x2b2b32 });
+    const stand = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.45, 0.4), woodMat);
+    stand.position.set(HOUSE.tv.x, 0.345, HOUSE.tv.z);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.7, 0.1), tvDark);
+    body.position.set(HOUSE.tv.x, 0.95, HOUSE.tv.z);
+    const screenTexture = createTvScreenTexture();
+    screenTexture.colorSpace = THREE.SRGBColorSpace;
+    const screen = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.08, 0.58),
+      new THREE.MeshBasicMaterial({ map: screenTexture }),
+    );
+    screen.position.set(HOUSE.tv.x, 0.95, HOUSE.tv.z + 0.06);
+    group.add(stand, body, screen);
+
+    scene.add(group);
+  }
+
   /** ポータルの門枠と「向こう側」を映す面を配置し、面メッシュを返す */
   private buildPortalMeshes(
     scene: THREE.Scene,
@@ -476,6 +579,25 @@ function buildNpcMesh(clothColor: number): THREE.Group {
 
   group.add(legs, body, head, hat, brim);
   return group;
+}
+
+/** テレビ画面のカラーバー(Canvas生成) */
+function createTvScreenTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 36;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const colors = ['#ffffff', '#ffd24d', '#4dffd2', '#4dff5e', '#ff4dd2', '#ff4d4d', '#4d6bff'];
+    const barWidth = canvas.width / colors.length;
+    colors.forEach((c, i) => {
+      ctx.fillStyle = c;
+      ctx.fillRect(i * barWidth, 0, barWidth + 1, canvas.height * 0.8);
+    });
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, canvas.height * 0.8, canvas.width, canvas.height * 0.2);
+  }
+  return new THREE.CanvasTexture(canvas);
 }
 
 // --- 地面のプロシージャル模様(外部アセット不要・シード付きで決定的) ---

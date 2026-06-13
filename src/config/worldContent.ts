@@ -47,9 +47,61 @@ export interface NpcSpec {
   color: number;
   /** 徘徊半径 [m] */
   wanderRadius: number;
+  /** 静止NPCの向き [rad](省略時は広場の中心を向く) */
+  yaw?: number;
   bubble: string;
   /** タップ時の世界の説明 */
   dialogue: string[];
+}
+
+/** 家のワールド内位置(ドアは +Z 向き) */
+export interface HouseSpec {
+  x: number;
+  z: number;
+}
+
+/** 家の寸法と家具のローカル配置(ドアは +Z 面の中央) */
+export const HOUSE = {
+  width: 6,
+  depth: 5,
+  wallHeight: 2.6,
+  doorWidth: 1.4,
+  /** テレビ(背面寄り・部屋側 +Z を向く) */
+  tv: { x: -1.5, z: -1.9, anchorY: 1.7 },
+  /** 円卓 */
+  table: { x: 1.1, z: -0.6, anchorY: 1.4 },
+} as const;
+
+export const HOUSE_TV_DIALOGUE = [
+  'テレビだ。カラフルな模様がずっと流れている。',
+  'チャンネルは…これひとつしかないようだ。',
+];
+export const HOUSE_TABLE_BUBBLE = 'これはテーブルです';
+
+/**
+ * 家の壁に沿って並べる円柱コライダーの位置(XZ)を返す。
+ * 半径0.4の円を約0.55間隔で外周に配置し、+Z面のドア開口部分だけ除外する。
+ */
+export const HOUSE_WALL_COLLIDER_RADIUS = 0.4;
+export function houseWallColliderSpots(
+  hx: number,
+  hz: number,
+): Array<{ x: number; z: number }> {
+  const spots: Array<{ x: number; z: number }> = [];
+  const w = HOUSE.width / 2;
+  const d = HOUSE.depth / 2;
+  const step = 0.5;
+  for (let x = -w; x <= w + 1e-6; x += step) {
+    spots.push({ x: hx + x, z: hz - d }); // 背面
+    if (Math.abs(x) > HOUSE.doorWidth / 2 + 0.2) {
+      spots.push({ x: hx + x, z: hz + d }); // 前面(ドア開口を除く)
+    }
+  }
+  for (let z = -d + step; z <= d - step + 1e-6; z += step) {
+    spots.push({ x: hx - w, z: hz + z }); // 左側面
+    spots.push({ x: hx + w, z: hz + z }); // 右側面
+  }
+  return spots;
 }
 
 export interface WorldDef {
@@ -58,6 +110,8 @@ export interface WorldDef {
   objects: WorldObjectSpec[];
   portals: PortalSpec[];
   npcs: NpcSpec[];
+  /** 家(入れる建物)。ドアは +Z 向き */
+  house?: HouseSpec;
   /** 地形起伏の振幅 [m] */
   terrainAmplitude: number;
 }
@@ -128,7 +182,18 @@ export const WORLD_DEFS: WorldDef[] = [
           '困ったら、そのへんを歩いている案内人に聞くといい。',
         ],
       },
+      {
+        // 家の中の住人(テレビの方を向いて立つ)
+        x: -9.4, z: -12.4, name: '住人', color: 0xc25a8a, wanderRadius: 0, yaw: 0.66,
+        bubble: 'テレビはいいぞ',
+        dialogue: [
+          'いらっしゃい、よく来たね。ここがわたしの家さ。',
+          'このテレビ、何年もつけっぱなしなんだ。いい模様だろう?',
+          'テーブルは昨日ふいたばかり。窓からの眺めも自慢なんだ。ゆっくりしていって。',
+        ],
+      },
     ],
+    house: { x: -10, z: -13 },
   },
   {
     id: 'night',
