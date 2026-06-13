@@ -25,18 +25,23 @@ export class TickUseCase {
 
   execute(dt: number): TickResult {
     const player = this.session.player;
+    const currentWorld = this.session.currentWorld;
     const before = player.position;
 
-    this.movement.tick(player, dt);
+    this.movement.tick(player, dt, currentWorld.terrain);
     // 押し出し後の位置でポータル判定する(押し戻されたフレームの誤通過を防ぐ)
-    this.collision.resolve(player, this.session.currentWorld.colliders);
+    this.collision.resolve(player, currentWorld.colliders);
+    // 押し出しで足元がずれた場合も地形へ再スナップ
+    player.position = player.position.withY(
+      currentWorld.terrain.heightAt(player.position.x, player.position.z),
+    );
 
     // 全ワールドのNPCを徘徊させる(ポータル越しに見えるNPCも動く)。
     // 話しかけられている相手は立ち止まる
     for (const world of this.session.allWorlds) {
       for (const npc of world.npcs) {
         if (npc === this.session.dialogueSpeaker) continue;
-        this.npcWander.tick(npc, dt, world.colliders);
+        this.npcWander.tick(npc, dt, world.colliders, world.terrain);
       }
     }
 

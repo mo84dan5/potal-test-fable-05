@@ -41,14 +41,18 @@ export class Npc extends Interactable {
     this.collider = { position: spawn.withY(0), radius: 0.45 };
   }
 
-  /** 足元座標(y=0) */
+  /** 足元の地形高さ */
+  public groundY = 0;
+
+  /** 足元座標(y=地形の高さ) */
   get feet(): Vec3 {
-    return this.position.withY(0);
+    return new Vec3(this.position.x, this.groundY, this.position.z);
   }
 
   /** 足元座標を更新する(吹き出しアンカーとコライダーも追従) */
-  moveTo(x: number, z: number): void {
-    this.position = new Vec3(x, this.anchorY, z);
+  moveTo(x: number, z: number, groundY = 0): void {
+    this.groundY = groundY;
+    this.position = new Vec3(x, groundY + this.anchorY, z);
     this.collider.position = new Vec3(x, 0, z);
   }
 }

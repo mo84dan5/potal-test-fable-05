@@ -58,6 +58,8 @@ export interface WorldDef {
   objects: WorldObjectSpec[];
   portals: PortalSpec[];
   npcs: NpcSpec[];
+  /** 地形起伏の振幅 [m] */
+  terrainAmplitude: number;
 }
 
 const TREE_BUBBLE = 'これは木です';
@@ -88,6 +90,7 @@ const PILLAR_DIALOGUE = [
 export const WORLD_DEFS: WorldDef[] = [
   {
     id: 'day',
+    terrainAmplitude: 0.8,
     name: '昼の世界',
     objects: [
       { kind: 'tree', x: -8, z: -2, name: '木', anchorY: 4.2, collisionRadius: 0.5, bubble: TREE_BUBBLE },
@@ -129,6 +132,7 @@ export const WORLD_DEFS: WorldDef[] = [
   },
   {
     id: 'night',
+    terrainAmplitude: 0.7,
     name: '夜の世界',
     objects: [
       { kind: 'crystal', x: -7, z: -3, size: 1.6, color: 0x66ffee, name: 'クリスタル', anchorY: 2.2, collisionRadius: 0.55, bubble: CRYSTAL_BUBBLE, dialogue: CRYSTAL_DIALOGUE },
@@ -165,6 +169,7 @@ export const WORLD_DEFS: WorldDef[] = [
   },
   {
     id: 'snow',
+    terrainAmplitude: 1.2,
     name: '雪の世界',
     objects: [
       { kind: 'ice', x: -6, z: -1, size: 2.4, name: '氷柱', anchorY: 2.8, collisionRadius: 0.55, bubble: ICE_BUBBLE, dialogue: ICE_DIALOGUE },
@@ -199,6 +204,7 @@ export const WORLD_DEFS: WorldDef[] = [
   },
   {
     id: 'ruins',
+    terrainAmplitude: 0.5,
     name: '黄昏の遺跡',
     objects: [
       { kind: 'pillar', x: -7, z: -2, size: 3.4, name: '柱', anchorY: 3.8, collisionRadius: 0.65, bubble: PILLAR_BUBBLE, dialogue: PILLAR_DIALOGUE },

@@ -70,11 +70,21 @@ describe('MovementService', () => {
     expect(player.desiredVelocity).toBeNull();
   });
 
-  it('高さは常に y=0 に保たれる', () => {
+  it('高さは常に y=0 に保たれる(平坦地形のデフォルト)', () => {
     const service = new MovementService();
     const player = newPlayer();
     player.velocity = new Vec3(0, 5, 1);
     service.tick(player, 1);
     expect(player.position.y).toBe(0);
+  });
+
+  it('地形を渡すと足元が地形の高さにスナップする(地形に沿って移動)', () => {
+    const service = new MovementService();
+    const player = newPlayer();
+    player.velocity = new Vec3(2, 0, 0);
+    const terrain = { heightAt: (x: number, z: number) => 0.1 * x + 0.05 * z };
+    service.tick(player, 1, terrain);
+    expect(player.position.x).toBeCloseTo(2);
+    expect(player.position.y).toBeCloseTo(0.2); // h(2, 0) = 0.2
   });
 });

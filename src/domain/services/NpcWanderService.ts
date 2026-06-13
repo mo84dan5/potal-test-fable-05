@@ -1,5 +1,6 @@
 import { Npc } from '../entities/Npc';
 import { Collider } from '../values/Collider';
+import { FLAT_TERRAIN, HeightField } from '../values/Terrain';
 
 const WALK_SPEED = 1.1; // [m/s]
 const ARRIVE_DISTANCE = 0.25; // [m] 目的地到達とみなす距離
@@ -8,7 +9,12 @@ const MAX_PAUSE = 3.5; // [s]
 
 /** NPCの徘徊(目的地へ歩く→立ち止まる→次の目的地)を更新するドメインサービス */
 export class NpcWanderService {
-  tick(npc: Npc, dt: number, colliders: readonly Collider[]): void {
+  tick(
+    npc: Npc,
+    dt: number,
+    colliders: readonly Collider[],
+    terrain: HeightField = FLAT_TERRAIN,
+  ): void {
     if (dt <= 0) return;
     if (npc.wanderRadius <= 0) return; // 静止NPC(その場に立っている)
 
@@ -62,6 +68,6 @@ export class NpcWanderService {
 
     // 進行方向を向く(forward = (-sin yaw, -cos yaw) の規約)
     npc.yaw = Math.atan2(-(dx / dist), -(dz / dist));
-    npc.moveTo(nx, nz);
+    npc.moveTo(nx, nz, terrain.heightAt(nx, nz)); // 地形に沿って歩く
   }
 }

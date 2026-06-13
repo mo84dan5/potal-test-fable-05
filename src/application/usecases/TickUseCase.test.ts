@@ -163,6 +163,23 @@ describe('TickUseCase', () => {
     expect(session.dialogueSpeaker).toBeNull();
   });
 
+  it('起伏のある地形では足元が地形の高さにスナップして移動する', () => {
+    const terrain = { heightAt: (x: number, z: number) => 0.1 * x + 0.05 * z };
+    const player = new Player(new Vec3(0, 0, 4), new Vec3(2, 0, 0), 0, 0);
+    const a = new World(
+      'day', '昼',
+      [new Portal('day-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'night', 'night-p1')],
+      [], [], [], terrain,
+    );
+    const b = new World('night', '夜', [new Portal('night-p1', new Vec3(0, 0, -6), 0, 1.4, 3, 'day', 'day-p1')]);
+    const session = new GameSession([a, b], 'day', player);
+
+    buildTick(session).execute(0.5); // x=1 へ移動
+
+    expect(player.position.x).toBeCloseTo(1);
+    expect(player.position.y).toBeCloseTo(0.1 * 1 + 0.05 * 4); // h(1, 4) = 0.3
+  });
+
   it('コライダーのあるオブジェクトはすり抜けられない(押し出し+壁ずり)', () => {
     const player = new Player(new Vec3(0, 0, 0), new Vec3(0, 0, -6), 0, 0);
     const rock = { position: new Vec3(0, 0, -2), radius: 0.5 };

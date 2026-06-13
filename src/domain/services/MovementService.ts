@@ -1,4 +1,5 @@
 import { Player } from '../entities/Player';
+import { FLAT_TERRAIN, HeightField } from '../values/Terrain';
 import { Vec3 } from '../values/Vec3';
 
 export interface MovementConfig {
@@ -39,17 +40,18 @@ export class MovementService {
     player.desiredVelocity = null;
   }
 
-  /** 1フレーム分の積分: 位置更新・速度制御(追従 or 減衰)・範囲クランプ */
-  tick(player: Player, dt: number): void {
+  /** 1フレーム分の積分: 位置更新・速度制御(追従 or 減衰)・範囲クランプ・地形スナップ */
+  tick(player: Player, dt: number, terrain: HeightField = FLAT_TERRAIN): void {
     if (dt <= 0) return;
-    let pos = player.position.add(player.velocity.scale(dt)).withY(0);
+    let pos = player.position.add(player.velocity.scale(dt));
 
     const r = Math.hypot(pos.x, pos.z);
     if (r > this.config.boundsRadius) {
       const k = this.config.boundsRadius / r;
-      pos = new Vec3(pos.x * k, 0, pos.z * k);
+      pos = new Vec3(pos.x * k, pos.y, pos.z * k);
     }
-    player.position = pos;
+    // 足元を地形の高さへスナップ(地形に沿って移動する)
+    player.position = pos.withY(terrain.heightAt(pos.x, pos.z));
 
     if (player.desiredVelocity) {
       // 仮想パッド押下中: 目標速度へ指数追従

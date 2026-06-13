@@ -11,6 +11,7 @@ import { MovementService } from './domain/services/MovementService';
 import { NpcWanderService } from './domain/services/NpcWanderService';
 import { PortalTraversalService } from './domain/services/PortalTraversalService';
 import { Collider } from './domain/values/Collider';
+import { HeightField, HillyTerrain } from './domain/values/Terrain';
 import {
   BUBBLE_RANGE,
   DIALOGUE_BREAK_RANGE,
@@ -38,13 +39,17 @@ import { ThreeRendererAdapter } from './adapters/rendering/ThreeRendererAdapter'
 const worldName = (worldId: string): string =>
   WORLD_DEFS.find((d) => d.id === worldId)?.name ?? worldId;
 
-const toInteractables = (specs: WorldObjectSpec[], worldId: string): Interactable[] =>
+const toInteractables = (
+  specs: WorldObjectSpec[],
+  worldId: string,
+  terrain: HeightField,
+): Interactable[] =>
   specs.map(
     (s, i) =>
       new Interactable(
         `${worldId}-${s.kind}-${i}`,
         s.name,
-        new Vec3(s.x, s.anchorY, s.z),
+        new Vec3(s.x, s.anchorY + terrain.heightAt(s.x, s.z), s.z),
         s.bubble ?? null,
         s.dialogue ?? [],
       ),
@@ -73,8 +78,18 @@ const portalPillarColliders = (portal: Portal): Collider[] => {
 };
 
 const NPC_ANCHOR_Y = 2.0;
+const FLAT_PORTAL_RADIUS = 5; // ポータル周辺の平坦化半径 [m]
+const FLAT_SPAWN_RADIUS = 4; // スポーン(原点)の平坦化半径 [m]
+
+// 地形: ワールドごとの振幅+ポータル・スポーン周辺の平坦化
+const buildTerrain = (def: WorldDef): HeightField =>
+  new HillyTerrain(def.terrainAmplitude, [
+    ...def.portals.map((p) => ({ x: p.x, z: p.z, radius: FLAT_PORTAL_RADIUS })),
+    { x: 0, z: 0, radius: FLAT_SPAWN_RADIUS },
+  ]);
 
 const buildWorld = (def: WorldDef): World => {
+  const terrain = buildTerrain(def);
   const portals = def.portals.map(
     (p) =>
       new Portal(
@@ -103,6 +118,7 @@ const buildWorld = (def: WorldDef): World => {
       // 静止NPCは広場の中心(原点)を向いて立つ
       npc.yaw = Math.atan2(spec.x, spec.z);
     }
+    npc.moveTo(spec.x, spec.z, terrain.heightAt(spec.x, spec.z)); // 初期位置を地形へスナップ
     return npc;
   });
   return new World(
@@ -110,7 +126,7 @@ const buildWorld = (def: WorldDef): World => {
     def.name,
     portals,
     [
-      ...toInteractables(def.objects, def.id),
+      ...toInteractables(def.objects, def.id, terrain),
       ...portals.map(portalInteractable),
       ...npcs,
     ],
@@ -120,6 +136,7 @@ const buildWorld = (def: WorldDef): World => {
       ...npcs.map((n) => n.collider),
     ],
     npcs,
+    terrain,
   );
 };
 

@@ -27,9 +27,10 @@ export class CollisionService {
         const nx = dist > 1e-6 ? dx / dist : 1;
         const nz = dist > 1e-6 ? dz / dist : 0;
         const push = minDist - dist;
+        // y(地形の高さ)は保持する。押し出し後の再スナップは呼び出し側が行う
         player.position = new Vec3(
           player.position.x + nx * push,
-          0,
+          player.position.y,
           player.position.z + nz * push,
         );
 

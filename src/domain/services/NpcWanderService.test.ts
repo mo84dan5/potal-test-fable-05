@@ -87,6 +87,17 @@ describe('NpcWanderService', () => {
     expect(npc.collider.position.z).toBeCloseTo(npc.feet.z);
   });
 
+  it('地形を渡すと足元と吹き出しアンカーが地形の高さに追従する', () => {
+    const npc = buildNpc();
+    npc.targetX = 5;
+    npc.targetZ = 0;
+    const terrain = { heightAt: (x: number) => 0.2 * x };
+    service.tick(npc, 1, [], terrain); // x=1.1 まで歩く
+    expect(npc.feet.x).toBeCloseTo(1.1);
+    expect(npc.feet.y).toBeCloseTo(0.22); // h(1.1) = 0.22
+    expect(npc.position.y).toBeCloseTo(0.22 + 2.0); // 吹き出しアンカーも追従
+  });
+
   it('障害物に円の外へ押し出されても徘徊円の境界へ引き戻される(範囲優先)', () => {
     const npc = buildNpc(); // 中心(0,0) 半径5
     // 円の縁(x=4.9)から外向きの目的地へ歩かせ、背後の障害物が円外(x=5.55)へ押し出す状況を作る

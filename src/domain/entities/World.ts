@@ -1,9 +1,10 @@
 import { Collider } from '../values/Collider';
+import { FLAT_TERRAIN, HeightField } from '../values/Terrain';
 import { Interactable } from './Interactable';
 import { Npc } from './Npc';
 import { Portal } from './Portal';
 
-/** ワールド。複数のポータルと、インタラクト対象オブジェクト・衝突体・NPCを持つ */
+/** ワールド。複数のポータルと、インタラクト対象オブジェクト・衝突体・NPC・地形を持つ */
 export class World {
   constructor(
     public readonly id: string,
@@ -12,6 +13,7 @@ export class World {
     public readonly interactables: readonly Interactable[] = [],
     public readonly colliders: readonly Collider[] = [],
     public readonly npcs: readonly Npc[] = [],
+    public readonly terrain: HeightField = FLAT_TERRAIN,
   ) {}
 
   getPortal(portalId: string): Portal {

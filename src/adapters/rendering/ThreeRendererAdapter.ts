@@ -3,6 +3,7 @@ import { GameSession } from '../../domain/entities/GameSession';
 import { Player } from '../../domain/entities/Player';
 import { Portal } from '../../domain/entities/Portal';
 import { World } from '../../domain/entities/World';
+import { HeightField } from '../../domain/values/Terrain';
 import { Vec3 } from '../../domain/values/Vec3';
 import { WORLD_DEFS, WorldObjectSpec } from '../../config/worldContent';
 
@@ -147,7 +148,7 @@ export class ThreeRendererAdapter {
         const mesh = view.npcMeshes.get(npc.id);
         if (!mesh) continue;
         const feet = npc.feet;
-        mesh.position.set(feet.x, 0, feet.z);
+        mesh.position.set(feet.x, feet.y, feet.z);
         mesh.rotation.y = npc.yaw;
       }
     }
@@ -199,14 +200,14 @@ export class ThreeRendererAdapter {
   private buildWorld(world: World, size: THREE.Vector2): WorldView {
     const scene = new THREE.Scene();
     const def = WORLD_DEFS.find((d) => d.id === world.id);
-    this.buildEnvironment(scene, world.id);
-    if (def) this.buildObjects(scene, def.objects);
+    this.buildEnvironment(scene, world.id, world.terrain);
+    if (def) this.buildObjects(scene, def.objects, world.terrain);
 
     const npcMeshes = new Map<string, THREE.Group>();
     world.npcs.forEach((npc, i) => {
       const mesh = buildNpcMesh(def?.npcs[i]?.color ?? 0xe06a3c);
       const feet = npc.feet;
-      mesh.position.set(feet.x, 0, feet.z);
+      mesh.position.set(feet.x, feet.y, feet.z);
       mesh.rotation.y = npc.yaw;
       scene.add(mesh);
       npcMeshes.set(npc.id, mesh);
@@ -233,7 +234,11 @@ export class ThreeRendererAdapter {
     return { scene, portalSurfaces, portalMaterials, npcMeshes };
   }
 
-  private buildEnvironment(scene: THREE.Scene, worldId: string): void {
+  private buildEnvironment(
+    scene: THREE.Scene,
+    worldId: string,
+    terrain: HeightField,
+  ): void {
     switch (worldId) {
       case 'day': {
         scene.background = new THREE.Color(0x87ceeb);
@@ -242,7 +247,7 @@ export class ThreeRendererAdapter {
         const sun = new THREE.DirectionalLight(0xfff4d6, 1.4);
         sun.position.set(10, 20, 8);
         scene.add(sun);
-        this.addGround(scene, 'grass');
+        this.addGround(scene, 'grass', terrain);
         break;
       }
       case 'night': {
@@ -252,7 +257,7 @@ export class ThreeRendererAdapter {
         const moonLight = new THREE.DirectionalLight(0xaabbff, 0.7);
         moonLight.position.set(-8, 18, -6);
         scene.add(moonLight);
-        this.addGround(scene, 'dirt');
+        this.addGround(scene, 'dirt', terrain);
 
         const moon = new THREE.Mesh(
           new THREE.SphereGeometry(2.4, 24, 24),
@@ -270,7 +275,7 @@ export class ThreeRendererAdapter {
         const winterSun = new THREE.DirectionalLight(0xeef6ff, 0.9);
         winterSun.position.set(6, 16, 10);
         scene.add(winterSun);
-        this.addGround(scene, 'snow');
+        this.addGround(scene, 'snow', terrain);
         break;
       }
       case 'ruins': {
@@ -280,7 +285,7 @@ export class ThreeRendererAdapter {
         const dusk = new THREE.DirectionalLight(0xffa45e, 1.1);
         dusk.position.set(-12, 8, -10);
         scene.add(dusk);
-        this.addGround(scene, 'stone');
+        this.addGround(scene, 'stone', terrain);
 
         const sun = new THREE.Mesh(
           new THREE.SphereGeometry(3, 24, 24),
@@ -293,18 +298,30 @@ export class ThreeRendererAdapter {
     }
   }
 
-  private addGround(scene: THREE.Scene, pattern: GroundPattern): void {
+  private addGround(
+    scene: THREE.Scene,
+    pattern: GroundPattern,
+    terrain: HeightField,
+  ): void {
     const texture = createGroundTexture(pattern);
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(10, 10);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
 
+    // 地形の高さ場に沿って頂点を変位させた起伏のある地面
+    const geometry = new THREE.PlaneGeometry(80, 80, 64, 64);
+    geometry.rotateX(-Math.PI / 2);
+    const positions = geometry.attributes.position;
+    for (let i = 0; i < positions.count; i++) {
+      positions.setY(i, terrain.heightAt(positions.getX(i), positions.getZ(i)));
+    }
+    geometry.computeVertexNormals();
+
     const ground = new THREE.Mesh(
-      new THREE.CircleGeometry(40, 48),
+      geometry,
       new THREE.MeshLambertMaterial({ map: texture }),
     );
-    ground.rotation.x = -Math.PI / 2;
     scene.add(ground);
   }
 
@@ -325,7 +342,11 @@ export class ThreeRendererAdapter {
     );
   }
 
-  private buildObjects(scene: THREE.Scene, specs: WorldObjectSpec[]): void {
+  private buildObjects(
+    scene: THREE.Scene,
+    specs: WorldObjectSpec[],
+    terrain: HeightField,
+  ): void {
     const trunkMat = new THREE.MeshLambertMaterial({ color: 0x7a5230 });
     const leafMat = new THREE.MeshLambertMaterial({ color: 0x2e8b57 });
     const rockMat = new THREE.MeshLambertMaterial({ color: 0x9b9b8f });
@@ -338,6 +359,7 @@ export class ThreeRendererAdapter {
     const pillarMat = new THREE.MeshLambertMaterial({ color: 0xd8c49a });
 
     for (const spec of specs) {
+      const groundY = terrain.heightAt(spec.x, spec.z);
       switch (spec.kind) {
         case 'tree': {
           const tree = new THREE.Group();
@@ -349,14 +371,14 @@ export class ThreeRendererAdapter {
           const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3.2, 10), leafMat);
           leaves.position.y = 3.6;
           tree.add(trunk, leaves);
-          tree.position.set(spec.x, 0, spec.z);
+          tree.position.set(spec.x, groundY, spec.z);
           scene.add(tree);
           break;
         }
         case 'rock': {
           const s = spec.size ?? 0.6;
           const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(s), rockMat);
-          rock.position.set(spec.x, s * 0.6, spec.z);
+          rock.position.set(spec.x, groundY + s * 0.6, spec.z);
           scene.add(rock);
           break;
         }
@@ -372,14 +394,14 @@ export class ThreeRendererAdapter {
               roughness: 0.3,
             }),
           );
-          crystal.position.set(spec.x, h / 2, spec.z);
+          crystal.position.set(spec.x, groundY + h / 2, spec.z);
           scene.add(crystal);
           break;
         }
         case 'ice': {
           const h = spec.size ?? 2.2;
           const ice = new THREE.Mesh(new THREE.ConeGeometry(0.55, h, 7), iceMat);
-          ice.position.set(spec.x, h / 2, spec.z);
+          ice.position.set(spec.x, groundY + h / 2, spec.z);
           scene.add(ice);
           break;
         }
@@ -389,7 +411,7 @@ export class ThreeRendererAdapter {
             new THREE.CylinderGeometry(0.5, 0.62, h, 10),
             pillarMat,
           );
-          pillar.position.set(spec.x, h / 2, spec.z);
+          pillar.position.set(spec.x, groundY + h / 2, spec.z);
           scene.add(pillar);
           break;
         }
