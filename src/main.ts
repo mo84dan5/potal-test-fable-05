@@ -14,6 +14,7 @@ import { Collider } from './domain/values/Collider';
 import {
   BUBBLE_RANGE,
   DIALOGUE_BREAK_RANGE,
+  INTERACT_FRONT_DOT,
   INTERACT_RANGE,
   PORTAL_BUBBLE_ANCHOR_Y,
   PORTAL_HALF_WIDTH,
@@ -133,7 +134,12 @@ const applyStick = new ApplyStickUseCase(session);
 const applyDash = new ApplyDashUseCase(session, movement);
 const applyLook = new ApplyLookUseCase(session);
 const stopMovement = new StopMovementUseCase(session, movement);
-const tapInteract = new TapInteractUseCase(session, interaction, INTERACT_RANGE);
+const tapInteract = new TapInteractUseCase(
+  session,
+  interaction,
+  INTERACT_RANGE,
+  INTERACT_FRONT_DOT,
+);
 const nearbyBubble = new NearbyBubbleUseCase(session, interaction, BUBBLE_RANGE);
 const tick = new TickUseCase(
   session,

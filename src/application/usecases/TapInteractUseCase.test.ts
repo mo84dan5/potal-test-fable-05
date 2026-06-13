@@ -27,7 +27,7 @@ const buildUseCase = (session: GameSession): TapInteractUseCase =>
 
 describe('TapInteractUseCase', () => {
   it('近くのオブジェクトをタップするとメッセージウィンドウが開く', () => {
-    const rock = new Interactable('r', '石', new Vec3(2, 1, 0), null, ROCK_LINES);
+    const rock = new Interactable('r', '石', new Vec3(0, 1, -2), null, ROCK_LINES);
     const session = buildSession([rock]);
     buildUseCase(session).execute();
     expect(session.dialogue).not.toBeNull();
@@ -35,14 +35,14 @@ describe('TapInteractUseCase', () => {
   });
 
   it('遠いオブジェクトはタップしても開かない', () => {
-    const rock = new Interactable('r', '石', new Vec3(10, 1, 0), null, ROCK_LINES);
+    const rock = new Interactable('r', '石', new Vec3(0, 1, -10), null, ROCK_LINES);
     const session = buildSession([rock]);
     buildUseCase(session).execute();
     expect(session.dialogue).toBeNull();
   });
 
   it('コメントのないオブジェクト(吹き出しのみ)は開かない', () => {
-    const tree = new Interactable('t', '木', new Vec3(2, 4, 0), 'これは木です', []);
+    const tree = new Interactable('t', '木', new Vec3(0, 4, -2), 'これは木です', []);
     const session = buildSession([tree]);
     buildUseCase(session).execute();
     expect(session.dialogue).toBeNull();
@@ -51,9 +51,9 @@ describe('TapInteractUseCase', () => {
   it('近くの案内人NPC(動くInteractable)をタップすると世界の説明が開く', () => {
     const npc = new Npc(
       'npc', '案内人',
-      new Vec3(2, 0, 0), 2.0,
+      new Vec3(0, 0, -2), 2.0,
       'こんにちは!', ['ここは昼の世界。', '門の先は夜の世界だよ。'],
-      new Vec3(2, 0, 0), 5,
+      new Vec3(0, 0, -2), 5,
     );
     const session = buildSession([npc]);
     buildUseCase(session).execute();
@@ -62,7 +62,7 @@ describe('TapInteractUseCase', () => {
   });
 
   it('表示中にタップするとコメントが進み、最後のタップで閉じる', () => {
-    const rock = new Interactable('r', '石', new Vec3(2, 1, 0), null, ROCK_LINES);
+    const rock = new Interactable('r', '石', new Vec3(0, 1, -2), null, ROCK_LINES);
     const session = buildSession([rock]);
     const usecase = buildUseCase(session);
 
@@ -78,19 +78,41 @@ describe('TapInteractUseCase', () => {
   it('拡大された会話距離(5.25m=旧3.5の1.5倍)では5m先でも開き、5.5m先では開かない', () => {
     expect(INTERACT_RANGE).toBeCloseTo(3.5 * 1.5);
 
-    const near = new Interactable('n', '石', new Vec3(5, 1, 0), null, ['これは石だ。']);
+    const near = new Interactable('n', '石', new Vec3(0, 1, -5), null, ['これは石だ。']);
     const sessionNear = buildSession([near]);
     new TapInteractUseCase(sessionNear, new InteractionService(), INTERACT_RANGE).execute();
     expect(sessionNear.dialogue).not.toBeNull();
 
-    const far = new Interactable('f', '石', new Vec3(5.5, 1, 0), null, ['これは石だ。']);
+    const far = new Interactable('f', '石', new Vec3(0, 1, -5.5), null, ['これは石だ。']);
     const sessionFar = buildSession([far]);
     new TapInteractUseCase(sessionFar, new InteractionService(), INTERACT_RANGE).execute();
     expect(sessionFar.dialogue).toBeNull();
   });
 
+  it('背後のオブジェクトはタップしても開かない', () => {
+    const rock = new Interactable('r', '石', new Vec3(0, 1, 2), null, ROCK_LINES); // yaw=0 の真後ろ
+    const session = buildSession([rock]);
+    buildUseCase(session).execute();
+    expect(session.dialogue).toBeNull();
+  });
+
+  it('真横(前方±60°の外)のオブジェクトはタップしても開かない', () => {
+    const rock = new Interactable('r', '石', new Vec3(2, 1, 0), null, ROCK_LINES); // yaw=0 の真横+X
+    const session = buildSession([rock]);
+    buildUseCase(session).execute();
+    expect(session.dialogue).toBeNull();
+  });
+
+  it('前方コーン内(±60°以内)の斜め前のオブジェクトは開く', () => {
+    // 前方-Zに対して45°右前(dot=cos45°≈0.707 ≥ 0.5)
+    const rock = new Interactable('r', '石', new Vec3(1.5, 1, -1.5), null, ROCK_LINES);
+    const session = buildSession([rock]);
+    buildUseCase(session).execute();
+    expect(session.dialogue).not.toBeNull();
+  });
+
   it('会話を開くと相手(dialogueSpeaker)が記録され、閉じると解除される', () => {
-    const rock = new Interactable('r', '石', new Vec3(2, 1, 0), null, ['これは石だ。']);
+    const rock = new Interactable('r', '石', new Vec3(0, 1, -2), null, ['これは石だ。']);
     const session = buildSession([rock]);
     const usecase = buildUseCase(session);
 

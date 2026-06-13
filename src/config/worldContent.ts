@@ -242,6 +242,8 @@ export const BUBBLE_RANGE = 5;
 export const INTERACT_RANGE = 5.25;
 /** 会話中にこれ以上離れるとウィンドウが自動で閉じる距離 [m] */
 export const DIALOGUE_BREAK_RANGE = 6.5;
+/** 「前方」とみなすコーンの内積しきい値(cos60° → 前方±60°のみ話しかけ可能) */
+export const INTERACT_FRONT_DOT = Math.cos(Math.PI / 3);
 
 /** ポータル枠の柱の衝突半径 [m](面はコライダーなしで通過可能) */
 export const PORTAL_PILLAR_RADIUS = 0.25;
